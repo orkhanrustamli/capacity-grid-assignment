@@ -47,3 +47,9 @@ left unfinished. Append as you go; a line or two per entry is right.
 - Bug caught by the benchmark: passing the roster as `(SELECT array_agg(id) FROM people)` in the function's arguments stops Postgres inlining it; switched the count and over_only to a `LATERAL` join.
 - Known cost: whole-roster count/filter is 80–110 ms at production size regardless of index (aggregation). Pre-aggregation deferred.
 - Overran the 15-minute box by ~10 minutes because of the inlining finding; worth it.
+
+## Task 6 — PATCH /api/people/{id}
+- Decision: an edit applies from a chosen Monday (default this week) until the person's next later change; earlier weeks keep their history. `people.weekly_hours` mirrors the value in effect this week, so a past edit can return a `weekly_hours` other than the one sent.
+- Decision: optional `expected_weekly_hours` → 409 `capacity_conflict` with `current_weekly_hours` when someone else changed that week first; the person row is locked `FOR UPDATE` so two edits of one person serialise.
+- Validation: `weekly_hours` must be a JSON number (a quoted "32" is 400), 0–168, at most 2 decimals, no exponent (422); unknown fields and trailing data are 400.
+- Verified live: PATCH Ana 32 from 2026-01-12 → demo range shows 40, 40, 32 with the change marker on 01-12. Restored with a full DB reset (a PATCH back would leave an extra breakpoint row).
