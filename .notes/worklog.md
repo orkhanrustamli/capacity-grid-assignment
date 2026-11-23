@@ -63,3 +63,10 @@ left unfinished. Append as you go; a line or two per entry is right.
 - Decision: "This week" keeps the current number of weeks rather than resetting to 8.
 - Found while testing: `Date.UTC` maps years 0–99 to 1900–1999, so `isIsoDate('0002-01-01')` is false. Harmless (such dates are rejected), but it made one test pass for the wrong reason; the test now uses a 2020 date.
 - Verified in Chrome: demo range numbers for people 1–5 match the golden table; ← / → / This week (2026-11-23, all-zero columns render) / Demo range / back button / over-only (41 rows = the count) all behave; no console errors.
+
+## Task 9 — editing and refresh after save
+- Decision (ADR 0005): after a save, re-read only that person's row for the range the save started in and write it into the cache; other ranges are marked stale without refetching. No client-side arithmetic, no optimistic numbers.
+- Decision: the number input has `step="any"` and the form `noValidate` — the API accepts two decimals, and the browser's own validation would block 32.25 and hide the server's message.
+- Decision: "Saved — couldn't refresh this row" lives on the row (name cell + dimmed cells), not in the editor, so it survives closing the editor.
+- Verified in Chrome: Dee 40 → 48 from Jan 5 turns over → under, count 41 → 40, one row request; with the API stopped a save shows "Couldn't save…" and keeps the numbers; after restarting, Retry saved. DB reset afterwards.
+- Seen: in dev, React StrictMode aborts and re-sends the first grid request (the query consumes the abort signal). Dev-only; production makes one request.

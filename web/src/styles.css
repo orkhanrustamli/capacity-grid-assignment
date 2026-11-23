@@ -232,3 +232,64 @@ button:disabled {
 .load-more {
   margin-top: 0.75rem;
 }
+
+/* Editing */
+.cell__capacity {
+  padding: 0 0.15rem;
+  border: none;
+  border-bottom: 1px dashed currentColor;
+  border-radius: 0;
+  color: inherit;
+}
+
+.cell__capacity:hover,
+.cell__capacity:focus-visible {
+  background: color-mix(in srgb, var(--changed) 15%, transparent);
+}
+
+.cell-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+  min-width: 11rem;
+  font-size: 0.85rem;
+}
+
+.cell-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.cell-editor input {
+  font: inherit;
+  width: 6rem;
+}
+
+.cell-editor__actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.cell-editor__problem {
+  margin: 0;
+  color: var(--over);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+tr[data-stale] td {
+  opacity: 0.45;
+}
+
+.row-stale {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--over);
+  font-size: 0.8rem;
+  font-weight: 400;
+  white-space: normal;
+}
