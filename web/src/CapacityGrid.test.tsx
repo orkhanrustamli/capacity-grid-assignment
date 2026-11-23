@@ -1,88 +1,22 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { CapacityGrid } from './CapacityGrid'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { RangeControls } from './RangeControls'
 import { App } from './App'
-import type { CapacityPage, CapacityStatus, PersonRow } from './api'
-
-// Fixtures are the golden values for seed people 1–5 over the demo range
-// (api/capacity_golden_test.go), as the API returns them.
-const WEEKS = ['2025-12-29', '2026-01-05', '2026-01-12']
-type CellSpec = [allocated: number, capacity: number, weekend: number, status: CapacityStatus]
-
-function row(id: number, name: string, cells: CellSpec[], weeks = WEEKS): PersonRow {
-  return {
-    id,
-    name,
-    weeks: cells.map(([allocated, capacity, weekend, status], i) => ({
-      week: weeks[i],
-      allocated_hours: allocated,
-      capacity_hours: capacity,
-      weekend_hours: weekend,
-      utilization: capacity === 0 ? null : allocated / capacity,
-      status,
-      capacity_changed: false,
-    })),
-  }
-}
-
-const golden = [
-  row(1, 'Ana Ferreira', [[40, 40, 16, 'full'], [0, 40, 0, 'under'], [30, 40, 0, 'under']]),
-  row(2, 'Bo Lindqvist', [[0, 40, 0, 'under'], [32, 40, 16, 'under'], [8, 40, 0, 'under']]),
-  row(3, 'Cem Aydin', [[0, 20, 0, 'under'], [4, 20, 0, 'under'], [12, 20, 0, 'under']]),
-  row(4, 'Dee Okafor', [[0, 40, 0, 'under'], [45, 40, 0, 'over'], [40, 40, 0, 'full']]),
-  row(5, 'Eli Nakamura', [[0, 0, 0, 'under'], [20, 0, 0, 'over'], [0, 0, 0, 'under']]),
-]
-
-function page(people: PersonRow[], extra: Partial<CapacityPage> = {}): CapacityPage {
-  return { from: '2025-12-29', to: '2026-01-18', weeks: WEEKS, people, next_cursor: null, over_count: 2, ...extra }
-}
-
-const otherRange = page([row(9, 'Zed Quinn', [[8, 40, 0, 'under']], ['2026-01-19'])], {
-  from: '2026-01-19',
-  to: '2026-01-25',
-  weeks: ['2026-01-19'],
-  over_count: 0,
-})
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
-}
-
-function deferred<T>() {
-  let resolve!: (v: T) => void
-  const promise = new Promise<T>((r) => (resolve = r))
-  return { promise, resolve }
-}
-
-type Call = { method: string; url: string; body: unknown }
-
-/** Replaces fetch; returns the requests made, in order. */
-function stubFetch(handler: (url: URL, init: RequestInit) => Response | Promise<Response>): Call[] {
-  const calls: Call[] = []
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
-      const url = new URL(String(input), 'http://localhost')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : undefined
-      calls.push({ method: init.method ?? 'GET', url: url.pathname + url.search, body })
-      return handler(url, init)
-    }),
-  )
-  return calls
-}
-
-function renderGrid(from = '2025-12-29', to = '2026-01-16') {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const ui = (f: string, t: string) => (
-    <QueryClientProvider client={client}>
-      <CapacityGrid from={f} to={t} />
-    </QueryClientProvider>
-  )
-  const result = render(ui(from, to))
-  return { ...result, client, setRange: (f: string, t: string) => result.rerender(ui(f, t)) }
-}
+import type { CapacityPage } from './api'
+import { deeAt36, deeAt48, golden, otherRange, page, savedDee } from './test/fixtures'
+import {
+  deferred,
+  errorBody,
+  gridLoads,
+  isRowRefresh,
+  json,
+  patches,
+  renderGrid,
+  rowLoads,
+  stubFetch,
+  testQueryClient,
+} from './test/helpers'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -176,31 +110,6 @@ describe('CapacityGrid', () => {
     expect(await screen.findByText('Ana Ferreira')).toBeInTheDocument()
   })
 })
-
-// Dee after her capacity is raised to 48 h from the week of Jan 5.
-const deeAt48 = row(4, 'Dee Okafor', [[0, 40, 0, 'under'], [45, 48, 0, 'under'], [40, 48, 0, 'under']])
-deeAt48.weeks[1].capacity_changed = true
-const deeAt36 = row(4, 'Dee Okafor', [[0, 40, 0, 'under'], [45, 36, 0, 'over'], [40, 36, 0, 'over']])
-
-const savedDee = {
-  id: 4,
-  name: 'Dee Okafor',
-  weekly_hours: 48,
-  effective_from: '2026-01-05',
-  capacity_changes: [
-    { effective_from: null, weekly_hours: 40 },
-    { effective_from: '2026-01-05', weekly_hours: 48 },
-  ],
-}
-
-function errorBody(status: number, code: string, message: string, extra: Record<string, unknown> = {}): Response {
-  return json({ error: { code, message, ...extra } }, status)
-}
-
-const isRowRefresh = (url: URL) => url.searchParams.has('person_id')
-const gridLoads = (calls: Call[]) => calls.filter((c) => c.method === 'GET' && !c.url.includes('person_id'))
-const rowLoads = (calls: Call[]) => calls.filter((c) => c.method === 'GET' && c.url.includes('person_id'))
-const patches = (calls: Call[]) => calls.filter((c) => c.method === 'PATCH')
 
 /** Opens Dee's Jan 5 editor and types a value; returns the cell. */
 async function editDeeJan5(value: string) {
@@ -376,7 +285,7 @@ describe('editing capacity', () => {
     window.history.replaceState(null, '', '/?from=2025-12-29&to=2026-01-16')
     const patch = deferred<Response>()
     stubFetch((_url, init) => (init.method === 'PATCH' ? patch.promise : json(page(golden))))
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const client = testQueryClient()
     render(
       <QueryClientProvider client={client}>
         <App />
