@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { PersonRow } from './api'
 import { CapacityCell } from './CapacityCell'
 import { formatWeekLabel, type IsoDate } from './dates'
-import { capacityKeys, useCapacityGrid, useRefreshRow, type RowTarget } from './useCapacity'
+import { capacityKeys, useCapacityGrid, useRefreshRow, useSaveInProgress, type RowTarget } from './useCapacity'
 import type { Range } from './urlRange'
 
 type Props = {
@@ -23,10 +23,11 @@ export function CapacityGrid({ from, to }: Props) {
   const query = useCapacityGrid(range, overOnly)
   const staleRows = useStaleRows(range, overOnly)
   const refreshRow = useRefreshRow()
+  const saving = useSaveInProgress()
 
   const filter = (
     <label className="grid-toolbar__filter">
-      <input type="checkbox" checked={overOnly} onChange={(e) => setOverOnly(e.target.checked)} />
+      <input type="checkbox" checked={overOnly} disabled={saving} onChange={(e) => setOverOnly(e.target.checked)} />
       Only over-allocated
     </label>
   )

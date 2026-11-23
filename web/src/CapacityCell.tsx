@@ -20,6 +20,9 @@ type Props = {
  */
 export function CapacityCell({ personName, cell, editTarget, onRefreshFailed }: Props) {
   const [editing, setEditing] = useState(false)
+  // The grid stopped allowing edits (an older range shown while a new one
+  // loads): close the editor rather than reopen it on the next range's cell.
+  if (editing && !editTarget) setEditing(false)
   const noCapacity = cell.capacity_hours === 0
   const className = ['cell', `cell--${cell.status}`, noCapacity && 'cell--no-capacity'].filter(Boolean).join(' ')
   const capacity = formatHours(cell.capacity_hours)

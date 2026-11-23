@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { CapacityGrid } from './CapacityGrid'
 import { RangeControls } from './RangeControls'
+import { App } from './App'
 import type { CapacityPage, CapacityStatus, PersonRow } from './api'
 
 // Fixtures are the golden values for seed people 1–5 over the demo range
@@ -344,6 +345,74 @@ describe('editing capacity', () => {
 
     const saving = await within(cell).findByRole('button', { name: 'Saving…' })
     expect(saving).toBeDisabled()
+  })
+
+  it('a Load more in flight when the save lands does not bring back the old numbers', async () => {
+    // The server's state: Dee's capacity changes when the PATCH is applied.
+    let dee = golden[3]
+    const pageTwo = deferred<Response>()
+    stubFetch((url, init) => {
+      if (init.method === 'PATCH') {
+        dee = deeAt48
+        return json(savedDee)
+      }
+      if (isRowRefresh(url)) return json(page([dee]))
+      if (url.searchParams.get('cursor') === 'c1') return pageTwo.promise
+      return json(page([...golden.slice(0, 3), dee], { next_cursor: 'c1' }))
+    })
+    renderGrid()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Load more' }))
+    const cell = await editDeeJan5('48')
+    clickSave(cell)
+    await waitFor(() => expect(within(cell).queryByRole('button', { name: /Sav/ })).not.toBeInTheDocument())
+    pageTwo.resolve(json(page([golden[4]], { over_count: undefined })))
+
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.getByLabelText(/^Dee Okafor, week of Jan 5:/)).toHaveTextContent('45 / 48 h')
+  })
+
+  it('cannot be cancelled, and the range cannot change, while a save is in flight', async () => {
+    window.history.replaceState(null, '', '/?from=2025-12-29&to=2026-01-16')
+    const patch = deferred<Response>()
+    stubFetch((_url, init) => (init.method === 'PATCH' ? patch.promise : json(page(golden))))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <App />
+      </QueryClientProvider>,
+    )
+
+    const cell = await editDeeJan5('48')
+    clickSave(cell)
+    await within(cell).findByRole('button', { name: 'Saving…' })
+
+    expect(within(cell).getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    fireEvent.keyDown(within(cell).getByLabelText('Weekly hours from week of Jan 5'), { key: 'Escape' })
+    expect(within(cell).getByLabelText('Weekly hours from week of Jan 5')).toBeInTheDocument()
+    for (const name of ['← Week', 'This week', 'Week →', 'Demo range']) {
+      expect(screen.getByRole('button', { name })).toBeDisabled()
+    }
+    expect(screen.getByLabelText('From')).toBeDisabled()
+    expect(screen.getByRole('checkbox', { name: 'Only over-allocated' })).toBeDisabled()
+  })
+
+  it('a save whose outcome is unknown says so and offers Retry', async () => {
+    let attempt = 0
+    stubFetch((url, init) => {
+      if (init.method === 'PATCH' && ++attempt === 1) throw new TypeError('Failed to fetch')
+      if (init.method === 'PATCH') return json(savedDee)
+      if (isRowRefresh(url)) return json(page([deeAt48]))
+      return json(page(golden))
+    })
+    renderGrid()
+
+    const cell = await editDeeJan5('48')
+    clickSave(cell)
+
+    expect(await within(cell).findByText("Couldn't reach the server — your change may not have been saved.")).toBeInTheDocument()
+    fireEvent.click(within(cell).getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(cell).toHaveTextContent('45 / 48 h'))
   })
 
   it('Escape cancels without saving', async () => {

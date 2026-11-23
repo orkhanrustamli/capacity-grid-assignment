@@ -24,8 +24,13 @@ query cache.
 On a successful PATCH, the client requests `GET /api/capacity?from&to&person_id=<id>` for the
 range the save **started in** (captured when Save is clicked, not read when it returns), replaces
 that person in whichever loaded page holds them, and replaces page 0's `over_count` with the
-roster-wide count the row request carries (ADR 0006). Every other cached range is marked stale
-without refetching (`invalidateQueries({ refetchType: 'none' })`) and refetches when next shown.
+roster-wide count the row request carries (ADR 0006). If that grid is mid-fetch when the row
+arrives (a Load more, a refetch), the fetch started before the save and would write the old row
+back, so the grid is refetched instead of patched. Every other cached grid is invalidated: one on
+screen refetches now, the rest when next shown.
+
+While a save is in flight, Cancel, Escape, the range controls and the over-only filter are
+disabled, so the editor — where the outcome is shown — stays on screen until the save settles.
 
 The four failure states, each visible, none silent:
 
@@ -33,7 +38,8 @@ The four failure states, each visible, none silent:
 |---|---|
 | Validation (400/422) | The server's message under the input; the typed value stays for correction. |
 | Conflict (409) | "Changed by someone else — now 36 h." The row is re-read so the cell shows the winning value. |
-| Network / 5xx | "Couldn't save. Your change wasn't applied." with Retry (re-sends the same body); the cell keeps the last saved numbers. |
+| 500 and other errors | "Couldn't save. Your change wasn't applied." with Retry (re-sends the same body); the cell keeps the last saved numbers. |
+| No response, 502/503/504 | "Couldn't reach the server — your change may not have been saved." with Retry. Safe: saving the value already in effect is a no-op on the server, so a retry of an applied save succeeds instead of conflicting with itself. |
 | Saved, but the re-read failed | The row is dimmed and says "Saved — couldn't refresh this row." with Retry. Old numbers are never shown as current. |
 
 No numbers change while saving; the Save button shows "Saving…".
@@ -52,3 +58,7 @@ No numbers change while saving; the Save button shows "Saving…".
   because order is by name.
 - If two managers edit the same person, the second save gets the 409 path only when the client
   sent `expected_weekly_hours` — the grid always does.
+- **Known gap:** the browser's back button cannot be disabled. Pressing it during a save unmounts
+  the editor; the save completes and the grid it started in is refreshed or marked stale, but a
+  failure message for that save is not shown. Showing save outcomes at page level would close it.
+- A Load more caught by the refetch above is cancelled and has to be clicked again.

@@ -1,4 +1,13 @@
-import { keepPreviousData, useInfiniteQuery, useMutation, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query'
+import {
+  hashKey,
+  keepPreviousData,
+  useInfiniteQuery,
+  useIsMutating,
+  useMutation,
+  useQueryClient,
+  type InfiniteData,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { ApiError, fetchCapacity, updateCapacity, type CapacityPage, type PersonCapacity } from './api'
 import type { IsoDate } from './dates'
 import type { Range } from './urlRange'
@@ -37,6 +46,13 @@ export type SaveVariables = RowTarget & {
 
 export type SaveResult = { saved: PersonCapacity; row: CapacityPage }
 
+const saveCapacityKey = ['saveCapacity'] as const
+
+/** True while any capacity save is in flight; the range and filter stay put until it settles. */
+export function useSaveInProgress(): boolean {
+  return useIsMutating({ mutationKey: saveCapacityKey }) > 0
+}
+
 /** The save went through, but re-reading the row did not: the numbers on screen are old. */
 export class RefreshFailedError extends Error {
   readonly saved: PersonCapacity
@@ -55,12 +71,13 @@ export class RefreshFailedError extends Error {
  *
  * The range travels in the variables, captured when Save was clicked, so a
  * save that returns after the manager moved on still updates the right grid.
- * Cache writes live here, not in mutate() callbacks, because these run even
- * when the editing cell has unmounted.
+ * Cache writes and onRefreshFailed live here, not in mutate() callbacks,
+ * because these run even when the editing cell has unmounted.
  */
-export function useUpdateCapacity() {
+export function useUpdateCapacity({ onRefreshFailed }: { onRefreshFailed?: (v: SaveVariables) => void } = {}) {
   const queryClient = useQueryClient()
   return useMutation<SaveResult, ApiError | RefreshFailedError, SaveVariables>({
+    mutationKey: saveCapacityKey,
     mutationFn: async (v) => {
       const saved = await updateCapacity(v.personId, {
         weekly_hours: v.weeklyHours,
@@ -73,17 +90,15 @@ export function useUpdateCapacity() {
         throw new RefreshFailedError(saved)
       }
     },
-    onSuccess: ({ row }, v) => {
-      writeRow(queryClient, v, row)
-      markOtherRangesStale(queryClient)
-    },
+    onSuccess: ({ row }, v) => applyRow(queryClient, v, row),
     onError: async (err, v) => {
       if (err instanceof RefreshFailedError) {
-        markOtherRangesStale(queryClient)
+        onRefreshFailed?.(v)
+        refreshOtherGrids(queryClient, v)
       } else if (err instanceof ApiError && err.code === 'capacity_conflict') {
         // Show the value that won; if this re-read fails too, the conflict
         // message still names it.
-        await fetchRow(v).then((row) => writeRow(queryClient, v, row), () => undefined)
+        await fetchRow(v).then((row) => applyRow(queryClient, v, row), () => undefined)
       }
     },
   })
@@ -94,12 +109,47 @@ export function useRefreshRow() {
   const queryClient = useQueryClient()
   return useMutation<CapacityPage, ApiError, RowTarget>({
     mutationFn: fetchRow,
-    onSuccess: (row, v) => writeRow(queryClient, v, row),
+    onSuccess: (row, v) => applyRow(queryClient, v, row),
   })
 }
 
 function fetchRow(t: RowTarget): Promise<CapacityPage> {
   return fetchCapacity({ from: t.range.from, to: t.range.to, personIds: [t.personId] })
+}
+
+/**
+ * Puts a freshly read row into the grid it was edited in, and makes every
+ * other grid that may hold the person's old numbers refetch.
+ *
+ * A fetch of that grid already in flight (Load more, a refetch) was started
+ * before the save and would write the old row back when it lands, so in that
+ * case the grid is refetched instead of patched. The refetch cancels the
+ * in-flight request; a Load more caught by it has to be clicked again.
+ */
+async function applyRow(queryClient: QueryClient, t: RowTarget, row: CapacityPage) {
+  const key = capacityKeys.range(t.range, t.overOnly)
+  refreshOtherGrids(queryClient, t)
+  if (queryClient.isFetching({ queryKey: key, exact: true }) > 0) {
+    await queryClient.invalidateQueries({ queryKey: key, exact: true })
+    return
+  }
+  writeRow(queryClient, t, row)
+  // Over-only membership is not patched (ADR 0005); stale, so it is fresh next time it is shown.
+  void queryClient.invalidateQueries({ queryKey: key, exact: true, refetchType: 'none' })
+}
+
+/**
+ * Every other cached grid may hold the edited person's old numbers. One on
+ * screen (a second grid, or a range reached while the save was in flight)
+ * refetches now; the rest refetch when next shown.
+ */
+function refreshOtherGrids(queryClient: QueryClient, t: RowTarget) {
+  const edited = hashKey(capacityKeys.range(t.range, t.overOnly))
+  void queryClient.invalidateQueries({
+    queryKey: capacityKeys.all,
+    predicate: (q) => hashKey(q.queryKey) !== edited,
+    refetchType: 'active',
+  })
 }
 
 /**
@@ -120,13 +170,4 @@ function writeRow(queryClient: QueryClient, t: RowTarget, row: CapacityPage) {
         }
       : data,
   )
-}
-
-/**
- * Every cached grid may hold this person's old numbers. Mark them all stale
- * without refetching: each refetches when it is next shown. The grid on
- * screen was just patched, so it is not refetched now either.
- */
-function markOtherRangesStale(queryClient: QueryClient) {
-  void queryClient.invalidateQueries({ queryKey: capacityKeys.all, refetchType: 'none' })
 }

@@ -19,7 +19,8 @@ type Props = {
 export function CapacityEditor({ target, cell, onClose, onRefreshFailed }: Props) {
   const [value, setValue] = useState(String(cell.capacity_hours))
   const [emptyInput, setEmptyInput] = useState(false)
-  const save = useUpdateCapacity()
+  // Marked from the hook's own callback, which runs even if this editor has unmounted.
+  const save = useUpdateCapacity({ onRefreshFailed })
   const label = `Weekly hours from week of ${formatWeekLabel(cell.week)}`
 
   function submit(e: FormEvent) {
@@ -36,16 +37,15 @@ export function CapacityEditor({ target, cell, onClose, onRefreshFailed }: Props
     save.mutate(variables, {
       onSuccess: onClose,
       onError: (err) => {
-        if (err instanceof RefreshFailedError) {
-          onRefreshFailed()
-          onClose()
-        }
+        // The save went through; the row says it could not be re-read.
+        if (err instanceof RefreshFailedError) onClose()
       },
     })
   }
 
+  // While saving, the editor stays: it is where the outcome of the save is shown.
   function onKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Escape') onClose()
+    if (e.key === 'Escape' && !save.isPending) onClose()
   }
 
   // The server validates; the form does not, so its messages are the ones shown.
@@ -70,7 +70,7 @@ export function CapacityEditor({ target, cell, onClose, onRefreshFailed }: Props
         <button type="submit" disabled={save.isPending}>
           {save.isPending ? 'Saving…' : 'Save'}
         </button>
-        <button type="button" onClick={onClose}>
+        <button type="button" onClick={onClose} disabled={save.isPending}>
           Cancel
         </button>
       </div>
@@ -88,6 +88,9 @@ export function CapacityEditor({ target, cell, onClose, onRefreshFailed }: Props
   )
 }
 
+/** Network failure (0) and gateway errors: the request may have reached the API. */
+const OUTCOME_UNKNOWN = new Set([0, 502, 503, 504])
+
 function describeSaveError(err: ApiError | RefreshFailedError): { text: string; retry: boolean } | null {
   if (err instanceof RefreshFailedError) return null // the row shows it, not the editor
   if (err.code === 'capacity_conflict') {
@@ -95,5 +98,10 @@ function describeSaveError(err: ApiError | RefreshFailedError): { text: string; 
     return { text: `Changed by someone else — now ${formatHours(current)} h.`, retry: false }
   }
   if (err.status === 400 || err.status === 422) return { text: err.message, retry: false }
+  // No answer, or a gateway's: the save may have been applied. Retry is safe —
+  // saving the value already in effect is a no-op on the server.
+  if (OUTCOME_UNKNOWN.has(err.status)) {
+    return { text: "Couldn't reach the server — your change may not have been saved.", retry: true }
+  }
   return { text: "Couldn't save. Your change wasn't applied.", retry: true }
 }
