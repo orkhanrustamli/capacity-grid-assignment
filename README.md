@@ -129,7 +129,7 @@ The brief above names `api/capacity.go` and `api/people.go`; that code now lives
 
 ### API
 
-Every error has the same body, and database errors are logged, never returned:
+Every error our handlers return has the same body (unknown routes and methods get the router's plain-text 404/405), and database errors are logged, never returned:
 
 ```json
 { "error": { "code": "invalid_range", "message": "from must be on or before to" } }
