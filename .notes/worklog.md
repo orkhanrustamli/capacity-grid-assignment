@@ -27,3 +27,9 @@ left unfinished. Append as you go; a line or two per entry is right.
 
 - Decision: `from` snaps back to its Monday and `to` forward to its Sunday; the response echoes the snapped range. A request covers at most 53 weeks (caps a response at people × 53 cells).
 - Caught: the plan's "exactly 53 weeks" test range was really 52 weeks (off by one week); fixed the test data, not the code.
+
+## Task 3 — the capacity function
+
+- Decision: the rules live in one inlinable SQL function `capacity_person_weeks(from, to, ids[])` (ADR 0001). `EXPLAIN` confirms Postgres inlines it (no function scan; index on `person_id` used).
+- Decision: golden test on seed people 1–5 **fails** (with "run make reset") rather than skips when the seed was edited — a skipped golden test reads as a green suite. Consequence: after editing people 1–5 in the UI, run `make reset` before the Go tests.
+- Simplification: "zero capacity with work is over" needs no separate branch — allocated > 0 = capacity already satisfies `allocated > capacity`.
