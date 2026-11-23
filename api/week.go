@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -21,6 +22,10 @@ func parseDate(s string) (time.Time, error) {
 	d, err := time.Parse(dateLayout, s)
 	if err != nil || d.Format(dateLayout) != s {
 		return time.Time{}, fmt.Errorf("%q is not a YYYY-MM-DD date", s)
+	}
+	if d.Year() < 1 {
+		// Go accepts year 0000; Postgres has no year 0 and would fail the query.
+		return time.Time{}, fmt.Errorf("%q is before year 1", s)
 	}
 	return d, nil
 }
@@ -59,6 +64,12 @@ func parseRange(from, to string) (dateRange, error) {
 		return dateRange{}, badRequest("range_too_long", fmt.Sprintf("a range covers at most %d weeks", maxRangeWeeks))
 	}
 	return r, nil
+}
+
+// parsePersonID reads a person id: a positive integer that fits the int4 id column.
+func parsePersonID(s string) (int, bool) {
+	id, err := strconv.ParseInt(s, 10, 32)
+	return int(id), err == nil && id > 0
 }
 
 func badRequest(code, message string) *apiError {

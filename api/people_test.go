@@ -236,7 +236,11 @@ func TestPatchValidation(t *testing.T) {
 		{"trailing data", id, `{"weekly_hours": 32} {}`, 400, "invalid_body"},
 		{"bad date", id, `{"weekly_hours": 32, "effective_from": "2026-13-01"}`, 400, "invalid_body"},
 		{"bad expected", id, `{"weekly_hours": 32, "expected_weekly_hours": "40"}`, 400, "invalid_body"},
+		{"year zero", id, `{"weekly_hours": 32, "effective_from": "0000-01-05"}`, 400, "invalid_body"},
+		{"expected overflows", id, `{"weekly_hours": 32, "expected_weekly_hours": 1e999999}`, 400, "invalid_body"},
+		{"expected three decimals", id, `{"weekly_hours": 32, "expected_weekly_hours": 40.001}`, 400, "invalid_body"},
 		{"id not a number", "abc", `{"weekly_hours": 32}`, 400, "invalid_person_id"},
+		{"id beyond int4", "99999999999", `{"weekly_hours": 32}`, 400, "invalid_person_id"},
 		{"id zero", "0", `{"weekly_hours": 32}`, 400, "invalid_person_id"},
 		{"unknown person", "999999999", `{"weekly_hours": 32}`, 404, "person_not_found"},
 	}
@@ -262,5 +266,48 @@ func TestPatchValidation(t *testing.T) {
 				t.Errorf("error = %+v, want code %s", body.Error, c.code)
 			}
 		})
+	}
+}
+
+func nonBaselineChanges(t *testing.T, db DBTX, id int) int {
+	t.Helper()
+	var n int
+	mustScan(t, db.QueryRow(ctx, `SELECT count(*) FROM person_capacity_changes WHERE person_id = $1 AND effective_from <> '-infinity'`, id), &n)
+	return n
+}
+
+// Saving the value already in effect changes no week, so it must not write a
+// breakpoint: one would show a false "capacity changes" marker and cut short
+// a later edit of an earlier week.
+func TestPatchSameValueWritesNothing(t *testing.T) {
+	tx := beginTx(t)
+	id := insertPerson(t, tx, "zz-test patch", "40")
+
+	got := patch(t, tx, id, `{"weekly_hours": 40.00, "effective_from": "2026-01-05", "expected_weekly_hours": 40}`)
+
+	if got.WeeklyHours != 40 || len(got.CapacityChanges) != 1 {
+		t.Errorf("response = %+v", got)
+	}
+	if n := nonBaselineChanges(t, tx, id); n != 0 {
+		t.Errorf("%d change rows written for an unchanged value", n)
+	}
+	if weekCapacities(t, tx, id)["2026-01-05"].CapacityChanged {
+		t.Error("week 2026-01-05 marked as a capacity change")
+	}
+}
+
+// A save whose response was lost (timeout, dropped connection) is retried with
+// the same body. The retry must succeed, not report the first attempt as
+// someone else's conflicting change.
+func TestPatchRetryOfAppliedSaveSucceeds(t *testing.T) {
+	tx := beginTx(t)
+	id := insertPerson(t, tx, "zz-test patch", "40")
+	body := `{"weekly_hours": 32, "effective_from": "2026-01-05", "expected_weekly_hours": 40}`
+
+	patch(t, tx, id, body)
+	got := patch(t, tx, id, body)
+
+	if got.WeeklyHours != 32 || nonBaselineChanges(t, tx, id) != 1 {
+		t.Errorf("retry: response %+v, %d change rows", got, nonBaselineChanges(t, tx, id))
 	}
 }

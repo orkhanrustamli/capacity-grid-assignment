@@ -45,8 +45,13 @@ INSERT INTO person_capacity_changes (person_id, effective_from, weekly_hours)
 SELECT id, '-infinity', weekly_hours FROM people WHERE id = $1
 ON CONFLICT DO NOTHING`
 
+	// The value in effect for the edited week, whether it already equals the
+	// new value, and whether it equals what the client expected (true when the
+	// client sent no expectation).
 	capacityInEffectSQL = `
-SELECT round(weekly_hours, 2)::float8, weekly_hours = $3::numeric
+SELECT round(weekly_hours, 2)::float8,
+       weekly_hours = $3::numeric,
+       coalesce(weekly_hours = $4::numeric, true)
 FROM person_capacity_changes
 WHERE person_id = $1 AND effective_from <= $2::date
 ORDER BY effective_from DESC
@@ -98,12 +103,7 @@ func updateCapacity(ctx context.Context, db DBTX, personID int, u capacityUpdate
 	if _, err := tx.Exec(ctx, ensureBaselineSQL, personID); err != nil {
 		return personCapacity{}, err
 	}
-	if u.Expected != nil {
-		if err := checkExpected(ctx, tx, personID, u); err != nil {
-			return personCapacity{}, err
-		}
-	}
-	if _, err := tx.Exec(ctx, upsertChangeSQL, personID, out.EffectiveFrom, u.WeeklyHours); err != nil {
+	if err := applyChange(ctx, tx, personID, u); err != nil {
 		return personCapacity{}, err
 	}
 	if err := tx.QueryRow(ctx, mirrorCurrentSQL, personID, weekStart(today).Format(dateLayout)).Scan(&out.WeeklyHours); err != nil {
@@ -115,21 +115,29 @@ func updateCapacity(ctx context.Context, db DBTX, personID int, u capacityUpdate
 	return out, tx.Commit(ctx)
 }
 
-// checkExpected rejects the edit when the capacity in effect for the edited
-// week is no longer what the client last saw: someone else changed it.
-func checkExpected(ctx context.Context, tx pgx.Tx, personID int, u capacityUpdate) error {
+// applyChange writes the breakpoint unless the edited week already has the
+// new value (nothing would change, and a retried save must not conflict with
+// itself), and refuses it with 409 when the week's value is no longer the one
+// the client last saw.
+func applyChange(ctx context.Context, tx pgx.Tx, personID int, u capacityUpdate) error {
+	effectiveFrom := u.EffectiveFrom.Format(dateLayout)
 	var current float64
-	var matches bool
-	err := tx.QueryRow(ctx, capacityInEffectSQL, personID, u.EffectiveFrom.Format(dateLayout), *u.Expected).Scan(&current, &matches)
+	var unchanged, asExpected bool
+	err := tx.QueryRow(ctx, capacityInEffectSQL, personID, effectiveFrom, u.WeeklyHours, u.Expected).
+		Scan(&current, &unchanged, &asExpected)
 	if err != nil {
 		return err
 	}
-	if !matches {
+	if unchanged {
+		return nil
+	}
+	if !asExpected {
 		return &apiError{Status: http.StatusConflict, Code: "capacity_conflict",
 			Message: "capacity changed since it was loaded",
 			Details: map[string]any{"current_weekly_hours": current}}
 	}
-	return nil
+	_, err = tx.Exec(ctx, upsertChangeSQL, personID, effectiveFrom, u.WeeklyHours)
+	return err
 }
 
 func listChanges(ctx context.Context, tx pgx.Tx, personID int) ([]capacityChange, error) {

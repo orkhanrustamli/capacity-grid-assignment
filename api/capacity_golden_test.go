@@ -23,13 +23,16 @@ func requireFreshSeed(t *testing.T) {
 func TestSeedPeople1To5DemoRange(t *testing.T) {
 	requireFreshSeed(t)
 
-	type want struct{ allocated, weekend, capacity float64; status string }
+	type want struct {
+		allocated, weekend, capacity float64
+		status                       string
+	}
 	expected := map[int][3]want{
-		1: {{40, 16, 40, "full"}, {0, 0, 40, "under"}, {30, 0, 40, "under"}},  // Ana: Mon→Sun booking
-		2: {{0, 0, 40, "under"}, {32, 16, 40, "under"}, {8, 0, 40, "under"}},  // Bo: Fri→Mon crossing
-		3: {{0, 0, 20, "under"}, {4, 0, 20, "under"}, {12, 0, 20, "under"}},   // Cem: part-time
-		4: {{0, 0, 40, "under"}, {45, 0, 40, "over"}, {40, 0, 40, "full"}},    // Dee: overlap, then exactly full
-		5: {{0, 0, 0, "under"}, {20, 0, 0, "over"}, {0, 0, 0, "under"}},       // Eli: zero capacity
+		1: {{40, 16, 40, "full"}, {0, 0, 40, "under"}, {30, 0, 40, "under"}}, // Ana: Mon→Sun booking
+		2: {{0, 0, 40, "under"}, {32, 16, 40, "under"}, {8, 0, 40, "under"}}, // Bo: Fri→Mon crossing
+		3: {{0, 0, 20, "under"}, {4, 0, 20, "under"}, {12, 0, 20, "under"}},  // Cem: part-time
+		4: {{0, 0, 40, "under"}, {45, 0, 40, "over"}, {40, 0, 40, "full"}},   // Dee: overlap, then exactly full
+		5: {{0, 0, 0, "under"}, {20, 0, 0, "over"}, {0, 0, 0, "under"}},      // Eli: zero capacity
 	}
 	weeks := []string{"2025-12-29", "2026-01-05", "2026-01-12"}
 

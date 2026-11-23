@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"math"
 )
 
 // capacityQuery is a validated GET /api/capacity request.
@@ -36,8 +37,8 @@ func decodeCursor(s string) (*pageCursor, error) {
 	if err := json.Unmarshal(b, &c); err != nil {
 		return nil, err
 	}
-	if c.ID < 0 {
-		return nil, errors.New("negative id")
+	if c.ID < 0 || c.ID > math.MaxInt32 {
+		return nil, errors.New("id outside the int4 range")
 	}
 	return &c, nil
 }

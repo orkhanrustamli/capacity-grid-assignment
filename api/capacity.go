@@ -53,8 +53,8 @@ func parseCapacityQuery(v url.Values) (capacityQuery, error) {
 		q.After = c
 	}
 	for _, s := range v["person_id"] {
-		id, err := strconv.Atoi(s)
-		if err != nil || id < 1 {
+		id, ok := parsePersonID(s)
+		if !ok {
 			return capacityQuery{}, badRequest("invalid_person_id", "person_id must be a positive integer")
 		}
 		q.PersonIDs = append(q.PersonIDs, id)

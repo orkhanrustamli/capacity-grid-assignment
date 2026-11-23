@@ -27,9 +27,11 @@ var weeklyHoursPattern = regexp.MustCompile(`^\d{1,3}(\.\d{1,2})?$`)
 // week) until the person's next later change; earlier weeks keep their
 // history. expected_weekly_hours, when sent, must equal the value in effect
 // for that week, or the edit is refused with 409 (someone else changed it).
+// Saving the value already in effect is a no-op that succeeds, so a retried
+// save whose first response was lost does not conflict with itself.
 func (s *server) handleUpdatePerson(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(r.PathValue("id"))
-	if err != nil || id <= 0 {
+	id, ok := parsePersonID(r.PathValue("id"))
+	if !ok {
 		writeError(w, badRequest("invalid_person_id", "person id must be a positive integer"))
 		return
 	}
@@ -83,8 +85,8 @@ func (s *server) parseCapacityUpdate(body io.Reader) (capacityUpdate, error) {
 	}
 	if present(raw.ExpectedWeeklyHours) {
 		expected, ok := jsonNumber(raw.ExpectedWeeklyHours)
-		if !ok {
-			return capacityUpdate{}, invalidBody("expected_weekly_hours must be a number")
+		if !ok || !weeklyHoursPattern.MatchString(expected) {
+			return capacityUpdate{}, invalidBody("expected_weekly_hours must be a number with at most two decimals")
 		}
 		u.Expected = &expected
 	}

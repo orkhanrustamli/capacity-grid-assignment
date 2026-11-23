@@ -173,6 +173,10 @@ func TestCapacityValidation(t *testing.T) {
 		{demoRange + "&person_id=abc", "invalid_person_id"},
 		{demoRange + "&over_only=yes", "invalid_over_only"},
 		{"from=2025-01-06&to=2026-03-01", "range_too_long"},
+		// Values Postgres cannot hold must be rejected here, not fail as a 500 there.
+		{demoRange + "&person_id=99999999999", "invalid_person_id"},
+		{demoRange + "&cursor=" + encodeCursor(pageCursor{Name: "a", ID: 99999999999}), "invalid_cursor"},
+		{"from=0000-01-03&to=0000-01-09", "invalid_date"},
 	} {
 		t.Run(tc.query, func(t *testing.T) {
 			rec := serveCapacity(testPool, tc.query)
