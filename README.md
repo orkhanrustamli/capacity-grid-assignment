@@ -114,7 +114,8 @@ What was built, how to check it, and where the reasoning lives. The design spec 
 the plan it was built from is in `docs/superpowers/plans/`.
 
 The brief above names `api/capacity.go` and `api/people.go`; that code now lives in the
-`api/capacity/` and `api/people/` packages.
+`api/capacity/` and `api/people/` packages, and `web/src/CapacityGrid.tsx` is now
+`web/src/components/CapacityGrid/CapacityGrid.tsx`.
 
 ### Decisions (ADRs)
 

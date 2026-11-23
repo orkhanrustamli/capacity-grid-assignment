@@ -59,7 +59,8 @@ reads clearly. Keep it short — a line or two per entry.
 
 - `api/` — Go service. `main.go` wires the server; the endpoints live in `capacity/` (GET) and
   `people/` (PATCH), with `week/`, `httpapi/` and `database/` (migrations embedded) beside them.
-- `web/` — Vite + React app. `App.tsx` sets the range; `CapacityGrid.tsx` renders it.
+- `web/` — Vite + React app. `src/App.tsx` sets the range; `src/components/CapacityGrid/` renders it,
+  `src/api/` talks to the API, `src/utils/` holds the date and hour helpers.
 - `db/` — `schema.sql` and `seed.sql`, loaded automatically on first `make up`.
 - `.notes/` — your working notes.
 

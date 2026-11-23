@@ -5,7 +5,7 @@ export type Range = { from: IsoDate; to: IsoDate }
 
 export const DEFAULT_WEEKS = 8
 
-/** The longest range the API serves in one request (api/week.go maxRangeWeeks). */
+/** The longest range the API serves in one request (week.MaxRangeWeeks in api/week/week.go). */
 export const MAX_RANGE_WEEKS = 53
 
 /** The weeks the seed's hand-crafted people are built around. */
