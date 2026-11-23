@@ -22,3 +22,8 @@ left unfinished. Append as you go; a line or two per entry is right.
 - Side effect: `go mod tidy` dropped the unused `sqlx` and bumped pgx v5.9.2 → v5.10.0 (goose's minimum).
 - Verified: migration applied once; two API restarts applied nothing; CHECKs reject a Tuesday, -1, 169 and NaN.
 - Environment note: host port 8080 is held by an unrelated local container on this machine, so `docker compose up api` can't publish it here; checked startup with `docker compose run` instead.
+
+## Task 2 — range parsing
+
+- Decision: `from` snaps back to its Monday and `to` forward to its Sunday; the response echoes the snapped range. A request covers at most 53 weeks (caps a response at people × 53 cells).
+- Caught: the plan's "exactly 53 weeks" test range was really 52 weeks (off by one week); fixed the test data, not the code.
