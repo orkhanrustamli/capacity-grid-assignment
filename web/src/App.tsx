@@ -1,17 +1,16 @@
 import { CapacityGrid } from './CapacityGrid'
+import { RangeControls } from './RangeControls'
+import { useUrlRange } from './urlRange'
 
-// The range the grid loads. Widen it if you want to see more.
-const FROM = '2025-12-29'
-const TO = '2026-01-16'
-
+// The page owns the range (in the URL) so the grid and, later, the logged-time
+// timeline beside it read the same weeks.
 export function App() {
+  const [range, setRange] = useUrlRange()
   return (
     <main>
       <h1>Team capacity</h1>
-      <p className="range">
-        {FROM} to {TO}
-      </p>
-      <CapacityGrid from={FROM} to={TO} />
+      <RangeControls range={range} onChange={setRange} />
+      <CapacityGrid from={range.from} to={range.to} />
     </main>
   )
 }

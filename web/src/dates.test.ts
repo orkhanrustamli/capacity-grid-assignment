@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, addWeeks, formatWeekLabel, isIsoDate, todayIso, weekEndOf, weekStartOf } from './dates'
+import { addDays, addWeeks, daysBetween, formatWeekLabel, isIsoDate, todayIso, weekEndOf, weekStartOf } from './dates'
 import { defaultRange, readRange } from './urlRange'
 
 // npm test runs under TZ=America/Los_Angeles: a viewer west of UTC is where a
@@ -36,6 +36,11 @@ describe('week arithmetic', () => {
     expect(weekEndOf('2026-03-04')).toBe('2026-03-08')
   })
 
+  it('daysBetween counts calendar days across a DST change', () => {
+    expect(daysBetween('2026-03-02', '2026-03-16')).toBe(14)
+    expect(daysBetween('2026-01-05', '2025-12-29')).toBe(-7)
+  })
+
   it('addDays crosses a month and a year', () => {
     expect(addDays('2026-12-31', 1)).toBe('2027-01-01')
     expect(addDays('2026-03-01', -1)).toBe('2026-02-28')
@@ -69,6 +74,11 @@ describe('readRange', () => {
 
   it('falls back when from is after to', () => {
     expect(readRange('?from=2026-02-01&to=2026-01-01', '2026-11-25')).toEqual(defaultRange('2026-11-25'))
+  })
+
+  it('falls back when the range is longer than the API serves (53 weeks)', () => {
+    expect(readRange('?from=2020-01-06&to=2026-01-16', '2026-11-25')).toEqual(defaultRange('2026-11-25'))
+    expect(readRange('?from=2025-01-06&to=2026-01-11', '2026-11-25')).toEqual({ from: '2025-01-06', to: '2026-01-11' })
   })
 
   it('default range starts on the Monday of today', () => {

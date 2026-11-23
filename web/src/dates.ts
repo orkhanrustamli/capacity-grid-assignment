@@ -29,6 +29,11 @@ export function addDays(d: IsoDate, n: number): IsoDate {
   return fromUtc(new Date(toUtc(d).getTime() + n * DAY_MS))
 }
 
+/** Whole calendar days from a to b (negative when b is earlier). */
+export function daysBetween(a: IsoDate, b: IsoDate): number {
+  return Math.round((toUtc(b).getTime() - toUtc(a).getTime()) / DAY_MS)
+}
+
 export function addWeeks(d: IsoDate, n: number): IsoDate {
   return addDays(d, 7 * n)
 }
