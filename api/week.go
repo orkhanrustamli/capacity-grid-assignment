@@ -64,3 +64,12 @@ func parseRange(from, to string) (dateRange, error) {
 func badRequest(code, message string) *apiError {
 	return &apiError{Status: http.StatusBadRequest, Code: code, Message: message}
 }
+
+// weekStarts lists the Monday of every week in the range.
+func (r dateRange) weekStarts() []string {
+	out := make([]string, 0, r.weekCount())
+	for d := r.From; d.Before(r.To); d = d.AddDate(0, 0, 7) {
+		out = append(out, d.Format(dateLayout))
+	}
+	return out
+}

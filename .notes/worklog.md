@@ -33,3 +33,9 @@ left unfinished. Append as you go; a line or two per entry is right.
 - Decision: the rules live in one inlinable SQL function `capacity_person_weeks(from, to, ids[])` (ADR 0001). `EXPLAIN` confirms Postgres inlines it (no function scan; index on `person_id` used).
 - Decision: golden test on seed people 1–5 **fails** (with "run make reset") rather than skips when the seed was edited — a skipped golden test reads as a green suite. Consequence: after editing people 1–5 in the UI, run `make reset` before the Go tests.
 - Simplification: "zero capacity with work is over" needs no separate branch — allocated > 0 = capacity already satisfies `allocated > capacity`.
+
+## Task 4 — GET /api/capacity
+
+- Decision: keyset pagination on `(name, id)`, `over_only` filter and roster-wide `over_count` on the first page only (ADR 0006). `person_id=` requests also carry `over_count` so the post-edit row refresh can update the count.
+- Dead end: the first pagination test assumed fixture names starting "zz-" sort last; the seed has Greek, Cyrillic, Hebrew, Arabic and CJK names, which sort after Latin in `en_US.utf8`. Test now checks the fixtures come first, in order, with no duplicates.
+- Verified with curl on the demo range: people 1–5 match the golden table; 41 people are over-allocated in that range; reversed range → 400 `invalid_range`.
