@@ -168,8 +168,9 @@ Errors: 400 `invalid_date`, `invalid_range`, `range_too_long`, `invalid_limit`, 
 `weekly_hours` is required (a JSON number, 0–168, at most two decimals). `effective_from` is
 optional (default: this week; any day snaps to its Monday); the value applies until the person's
 next later change. `expected_weekly_hours` is optional: if the value in effect that week is no
-longer that, the edit is refused with 409. `people.weekly_hours` keeps the value in effect this
-week.
+longer that, the edit is refused with 409. Saving the value already in effect for that week
+changes nothing and returns 200, so retrying a save whose response was lost is safe.
+`people.weekly_hours` keeps the value in effect this week.
 
 ```json
 { "id": 4, "name": "Dee Okafor", "weekly_hours": 32, "effective_from": "2026-01-05",
@@ -201,7 +202,8 @@ bash bench/run.sh build                # capacity_bench: 3,000 people, ~1.5 M as
 bash bench/run.sh explain btree        # EXPLAIN (ANALYZE, BUFFERS) for each API statement
 ```
 
-Candidates are `baseline`, `btree` and `gist`; results and the choice are in
+Candidates are `baseline`, `btree` and `gist`; cases cover 8-, 26- and 53-week ranges. Results
+and the choice are in
 [bench/RESULTS.md](bench/RESULTS.md).
 
 ### Deferred
