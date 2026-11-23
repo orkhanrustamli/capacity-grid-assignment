@@ -57,14 +57,15 @@ reads clearly. Keep it short — a line or two per entry.
 
 ## Layout
 
-- `api/` — Go service. `main.go` wires the server; `capacity.go` and `people.go` are the endpoints.
+- `api/` — Go service. `main.go` wires the server; the endpoints live in `capacity/` (GET) and
+  `people/` (PATCH), with `week/`, `httpapi/` and `database/` (migrations embedded) beside them.
 - `web/` — Vite + React app. `App.tsx` sets the range; `CapacityGrid.tsx` renders it.
 - `db/` — `schema.sql` and `seed.sql`, loaded automatically on first `make up`.
 - `.notes/` — your working notes.
 
 ## Conventions
 
-- Go: return errors, don't panic. Use `writeJSON` for responses.
+- Go: return errors, don't panic. Use `httpapi.WriteJSON` / `httpapi.WriteError` for responses.
 - SQL belongs in the query, not assembled from strings in Go.
 - TypeScript everywhere in `web/`, `strict` is on.
 

@@ -113,6 +113,9 @@ What was built, how to check it, and where the reasoning lives. The design spec 
 [`docs/superpowers/specs/2026-11-23-capacity-view-design.md`](docs/superpowers/specs/2026-11-23-capacity-view-design.md);
 the plan it was built from is in `docs/superpowers/plans/`.
 
+The brief above names `api/capacity.go` and `api/people.go`; that code now lives in the
+`api/capacity/` and `api/people/` packages.
+
 ### Decisions (ADRs)
 
 | ADR | Decision |
