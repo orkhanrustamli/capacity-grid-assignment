@@ -31,6 +31,23 @@ Here the index barely matters: the time goes to aggregating ~55 k rows into 24 k
 (sort spills ~11 MB to disk at the default `work_mem`). The lever for this is pre-aggregation or
 caching, not an index (ADR 0003).
 
+### Longer ranges (found in review; B-tree, generic plan)
+
+The 8-week cases above hid that the cost grows with the range. The first function (migration
+00002) joined every assignment in the range to every week in the range and then filtered, so the
+work grew with weeks × assignments. Migration 00004 expands each assignment only into the weeks
+it overlaps; on the seed it returns identical rows for 3, 8 and 53 weeks (checked with `EXCEPT`
+both ways).
+
+| over_count, whole roster | 00002 (every week × every assignment) | 00004 (overlapping weeks only) |
+|---|---|---|
+| 8 weeks | 112 ms | 112 ms |
+| 26 weeks | 625 ms | 302 ms |
+| 53 weeks (API maximum) | 2,321 ms | 600 ms |
+| (h) over_only first page, 53 weeks | — | 528 ms |
+
+Raw output: `bash bench/run.sh build && bash bench/run.sh explain btree` (cases f–h).
+
 ## Sizes (1.5 M rows; table 87 MB)
 
 B-tree 59 MB · GiST 99 MB · existing `(person_id)` 13 MB, `(start_date, end_date)` 12 MB.

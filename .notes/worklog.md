@@ -74,3 +74,8 @@ left unfinished. Append as you go; a line or two per entry is right.
 ## Task 10 — docs and final verification
 - Verified on a freshly reset DB: Go suite 34/34 pass, web suite 39/39 pass, `tsc` clean. In Chrome, people 1–5 on the demo range match the golden table cell by cell (41 over); the default URL opens on the week of 2026-11-23 with 8 columns. The edit + failed-save check was done in Task 9 on the same code.
 - Assumption corrected: the plan expected the current week to be empty; the seed does have bookings in late 2026 (65 people over in the default 8 weeks). The page renders it either way.
+
+## Final review — fixes
+- Correction: the "80–110 ms" count cost was only measured for 8 weeks. Review rebuilt the bench and found ~1 s at 26 weeks and ~3 s at 53 (I measured 625 ms / 2.3 s on my run). Cause: the function joined every assignment to every week of the range. Migration 00004 expands each assignment only into the weeks it overlaps: identical rows on the seed for three ranges (EXCEPT both ways), 302 ms / 600 ms. ADRs 0003/0005 and bench/RESULTS.md corrected.
+- Fixed: ids beyond int4, year 0000 and an overflowing `expected_weekly_hours` reached Postgres and came back as 500; now 400.
+- Fixed: saving the value already in effect wrote a breakpoint (false "capacity changes" dot, and it cut short a later edit of an earlier week); a retry of a save whose response was lost got 409 against its own value. Same-value saves are now no-ops that succeed.

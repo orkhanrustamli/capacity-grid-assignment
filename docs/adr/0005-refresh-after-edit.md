@@ -40,8 +40,10 @@ No numbers change while saving; the Save button shows "Saving…".
 
 ## Consequences
 
-- One extra request per edit (~one row's aggregate plus the roster-wide count; ADR 0003 measures
-  the count at 80–110 ms for 3,000 people).
+- One extra request per edit: one row's aggregate plus the roster-wide count. ADR 0003 measures
+  the count at 3,000 people as ~110 ms for 8 weeks and ~600 ms for the 53-week maximum, so on a
+  long range "Saving…" lasts up to about a second. Splitting the count into its own background
+  request would shorten that; deferred.
 - **Known gap:** in over-only mode, a person whose edit fixes their over-allocation stays listed
   (now showing "under") until the range is next loaded. Removing a row from under the manager's
   cursor right after they edited it is more jarring than one stale membership; the count above

@@ -27,10 +27,13 @@ is its best case.
 
 ## Consequences
 
-- The whole-roster aggregate behind `over_count` and `over_only` costs 80–110 ms at production
-  size, index or not: it is aggregation work. Acceptable on a first page load; the next step, if
-  it is not, is a per-person-week summary maintained on assignment writes (deferred), or caching
-  the count per range for a short time.
+- The whole-roster aggregate behind `over_count` and `over_only` is aggregation work, index or
+  not, and grows with the range: at 3,000 people about 110 ms for 8 weeks, 300 ms for 26 weeks
+  and 600 ms for 53 weeks (the API maximum). The first version of the function joined every
+  assignment to every week of the range and cost 2.3 s at 53 weeks; migration 00004 expands each
+  assignment only into the weeks it overlaps (same results, bench/RESULTS.md). Acceptable on a
+  page load; the next step, if it is not, is a per-person-week summary maintained on assignment
+  writes (deferred), or caching the count per range for a short time.
 - `assignments_person_id_idx` is now redundant (the new index leads with `person_id`). Dropping it
   would save write cost; left in place because it belongs to the given schema.
 - If a concurrent build fails it leaves an `INVALID` index that `IF NOT EXISTS` would then skip;

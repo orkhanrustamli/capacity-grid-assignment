@@ -41,3 +41,9 @@ EXPLAIN (ANALYZE, BUFFERS) EXECUTE cells('2026-06-01', '2026-11-29', :'page_ids'
 EXPLAIN (ANALYZE, BUFFERS) EXECUTE over_count('2026-11-23', '2027-01-17');
 \echo '== (e) over_only first page, whole roster, recent 8 weeks'
 EXPLAIN (ANALYZE, BUFFERS) EXECUTE over_only_page('', 0, true, '2026-11-23', '2027-01-17', 101);
+\echo '== (f) over_count, whole roster, 26 weeks 2026-06-01..2026-11-29'
+EXPLAIN (ANALYZE, BUFFERS) EXECUTE over_count('2026-06-01', '2026-11-29');
+\echo '== (g) over_count, whole roster, 53 weeks (the API maximum) 2025-12-01..2026-12-06'
+EXPLAIN (ANALYZE, BUFFERS) EXECUTE over_count('2025-12-01', '2026-12-06');
+\echo '== (h) over_only first page, whole roster, 53 weeks'
+EXPLAIN (ANALYZE, BUFFERS) EXECUTE over_only_page('', 0, true, '2025-12-01', '2026-12-06', 101);
