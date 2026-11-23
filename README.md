@@ -109,9 +109,8 @@ much easier when the notes are honest about what you didn't get to.
 
 ## Implementation notes
 
-What was built, how to check it, and where the reasoning lives. The design spec is
-[`docs/superpowers/specs/2026-11-23-capacity-view-design.md`](docs/superpowers/specs/2026-11-23-capacity-view-design.md);
-the plan it was built from is in `docs/superpowers/plans/`.
+What was built, how to check it, and where the reasoning lives: the decisions are the ADRs
+below, and the working history is in [`.notes/worklog.md`](.notes/worklog.md).
 
 The brief above names `api/capacity.go` and `api/people.go`; that code now lives in the
 `api/capacity/` and `api/people/` packages, and `web/src/CapacityGrid.tsx` is now

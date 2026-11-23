@@ -100,3 +100,6 @@ left unfinished. Append as you go; a line or two per entry is right.
 - Correction to the "Git note" above: the history *was* rewritten once, after both parallel agents finished. The Go renames moved out of the web test commit into the `refactor(api): split flat main package …` commit, so every commit builds; the commit hash cited above no longer exists. The final tree was checked identical before and after.
 - Correction to "Left as is": `CLAUDE.md`'s Layout and Conventions lines now name the packages; only its task table and the README brief keep the assignment's original file names.
 - Fresh review (independent agent): no high findings in numbers (41,500 cells checked against a per-day recount, 0 differences), API, edit flow or failed-save UX. Deferred mediums: a crafted cursor containing a NUL byte returns 500 instead of `invalid_cursor`; the router's own 404/405 replies are plain text, not our JSON error body; a second editor can be opened while another save is in flight; undoing an edit in the same week (40→32→40) keeps the "capacity changed" marker.
+
+## Publishing
+- The working design spec and plan were kept out of the published history (dropped before the first push); the ADRs and this worklog carry the decisions and their reasons.
