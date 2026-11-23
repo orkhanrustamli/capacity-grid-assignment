@@ -6,9 +6,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "tsc": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "TZ=America/Los_Angeles vitest run"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.108.4",
     "react": "19.2.0",
     "react-dom": "19.2.0"
   },

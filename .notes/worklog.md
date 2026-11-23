@@ -53,3 +53,7 @@ left unfinished. Append as you go; a line or two per entry is right.
 - Decision: optional `expected_weekly_hours` → 409 `capacity_conflict` with `current_weekly_hours` when someone else changed that week first; the person row is locked `FOR UPDATE` so two edits of one person serialise.
 - Validation: `weekly_hours` must be a JSON number (a quoted "32" is 400), 0–168, at most 2 decimals, no exponent (422); unknown fields and trailing data are 400.
 - Verified live: PATCH Ana 32 from 2026-01-12 → demo range shows 40, 40, 32 with the change marker on 01-12. Restored with a full DB reset (a PATCH back would leave an extra breakpoint row).
+
+## Task 7 — frontend foundations
+- Decision: dates are 'YYYY-MM-DD' strings and all arithmetic goes through UTC midnight; tests run under `TZ=America/Los_Angeles` and cover both 2026 US DST changes, so a viewer west of UTC never sees a week labelled by its Sunday.
+- Decision: the range lives in the URL (shareable, back button steps through ranges); a missing or invalid range falls back to 8 weeks from this Monday.
