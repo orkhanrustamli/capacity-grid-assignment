@@ -70,3 +70,7 @@ left unfinished. Append as you go; a line or two per entry is right.
 - Decision: "Saved — couldn't refresh this row" lives on the row (name cell + dimmed cells), not in the editor, so it survives closing the editor.
 - Verified in Chrome: Dee 40 → 48 from Jan 5 turns over → under, count 41 → 40, one row request; with the API stopped a save shows "Couldn't save…" and keeps the numbers; after restarting, Retry saved. DB reset afterwards.
 - Seen: in dev, React StrictMode aborts and re-sends the first grid request (the query consumes the abort signal). Dev-only; production makes one request.
+
+## Task 10 — docs and final verification
+- Verified on a freshly reset DB: Go suite 34/34 pass, web suite 39/39 pass, `tsc` clean. In Chrome, people 1–5 on the demo range match the golden table cell by cell (41 over); the default URL opens on the week of 2026-11-23 with 8 columns. The edit + failed-save check was done in Task 9 on the same code.
+- Assumption corrected: the plan expected the current week to be empty; the seed does have bookings in late 2026 (65 people over in the default 8 weeks). The page renders it either way.
