@@ -12,7 +12,8 @@ import (
 )
 
 type server struct {
-	db *pgxpool.Pool
+	db  DBTX
+	now func() time.Time
 }
 
 func main() {
@@ -39,7 +40,11 @@ func main() {
 		log.Fatalf("ping: %v", err)
 	}
 
-	s := &server{db: db}
+	if err := migrate(ctx, db); err != nil {
+		log.Fatalf("migrate: %v", err)
+	}
+
+	s := &server{db: db, now: time.Now}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.handleHealth)
