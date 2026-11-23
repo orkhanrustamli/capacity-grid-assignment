@@ -1,11 +1,11 @@
 # Benchmark — overlap index for the capacity query
 
 Run 2026-11-23 on the Compose Postgres 17 (laptop, Docker Desktop), `capacity_bench` built by
-`bash bench/run.sh build`: **3,000 people, 1,514,340 assignment rows** (the seed ×6 people,
+`bash db/bench/run.sh build`: **3,000 people, 1,514,340 assignment rows** (the seed ×6 people,
 then every booking repeated 84 weeks earlier, ~2.6 years of history). Statements are the API's
-own (`api/capacity_query.go`), prepared, with `plan_cache_mode = force_generic_plan` — the plan
+own (`api/capacity/query.go`), prepared, with `plan_cache_mode = force_generic_plan` — the plan
 pgx-prepared statements end up on. Each candidate ran twice; times are warm (second run) unless
-noted. Raw plans are reproducible with `bash bench/run.sh explain <candidate>`.
+noted. Raw plans are reproducible with `bash db/bench/run.sh explain <candidate>`.
 
 ## Page of 100 people (the request every grid load makes)
 
@@ -46,7 +46,7 @@ both ways).
 | 53 weeks (API maximum) | 2,321 ms | 600 ms |
 | (h) over_only first page, 53 weeks | — | 528 ms |
 
-Raw output: `bash bench/run.sh build && bash bench/run.sh explain btree` (cases f–h).
+Raw output: `bash db/bench/run.sh build && bash db/bench/run.sh explain btree` (cases f–h).
 
 ## Sizes (1.5 M rows; table 87 MB)
 

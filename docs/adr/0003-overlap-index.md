@@ -9,7 +9,7 @@ has `(person_id)` and `(start_date, end_date)`. The second only narrows `start_d
 a recent range it matches almost all history (on the seed Postgres seq-scanned and discarded 93%
 of rows). Production is a few thousand people and two years of history.
 
-## Options (measured — bench/RESULTS.md, 3,000 people, 1.5 M rows, generic plans)
+## Options (measured — [db/bench/RESULTS.md](../../db/bench/RESULTS.md), 3,000 people, 1.5 M rows, generic plans)
 
 | Option | Page of 100, recent / old / 26 weeks | Size | Cost |
 |---|---|---|---|
@@ -31,7 +31,7 @@ is its best case.
   not, and grows with the range: at 3,000 people about 110 ms for 8 weeks, 300 ms for 26 weeks
   and 600 ms for 53 weeks (the API maximum). The first version of the function joined every
   assignment to every week of the range and cost 2.3 s at 53 weeks; migration 00004 expands each
-  assignment only into the weeks it overlaps (same results, bench/RESULTS.md). Acceptable on a
+  assignment only into the weeks it overlaps (same results, [db/bench/RESULTS.md](../../db/bench/RESULTS.md)). Acceptable on a
   page load; the next step, if it is not, is a per-person-week summary maintained on assignment
   writes (deferred), or caching the count per range for a short time.
 - `assignments_person_id_idx` is now redundant (the new index leads with `person_id`). Dropping it

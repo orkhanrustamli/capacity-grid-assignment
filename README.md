@@ -119,7 +119,7 @@ the plan it was built from is in `docs/superpowers/plans/`.
 |---|---|
 | [0001](docs/adr/0001-working-days-and-weeks.md) | ISO weeks (Mon–Sun, named by the Monday); Mon–Fri working days; weekend hours shown, never counted; what "over" means, including zero capacity |
 | [0002](docs/adr/0002-capacity-history.md) | Capacity edits are effective-dated breakpoints, so past weeks keep the capacity they had |
-| [0003](docs/adr/0003-overlap-index.md) | One B-tree index on assignments, chosen by a benchmark at production scale ([bench/RESULTS.md](bench/RESULTS.md)) |
+| [0003](docs/adr/0003-overlap-index.md) | One B-tree index on assignments, chosen by a benchmark at production scale ([db/bench/RESULTS.md](db/bench/RESULTS.md)) |
 | [0004](docs/adr/0004-migrations-at-startup.md) | Database changes are embedded goose migrations the API applies at startup |
 | [0005](docs/adr/0005-refresh-after-edit.md) | After an edit, the client re-reads that person's row; four explicit failure states |
 | [0006](docs/adr/0006-pagination.md) | Keyset pagination by (name, id), an over-only filter and a roster-wide over count |
@@ -198,13 +198,13 @@ only show west of UTC fail here.
 ### Benchmark
 
 ```bash
-bash bench/run.sh build                # capacity_bench: 3,000 people, ~1.5 M assignment rows
-bash bench/run.sh explain btree        # EXPLAIN (ANALYZE, BUFFERS) for each API statement
+bash db/bench/run.sh build                # capacity_bench: 3,000 people, ~1.5 M assignment rows
+bash db/bench/run.sh explain btree        # EXPLAIN (ANALYZE, BUFFERS) for each API statement
 ```
 
 Candidates are `baseline`, `btree` and `gist`; cases cover 8-, 26- and 53-week ranges. Results
 and the choice are in
-[bench/RESULTS.md](bench/RESULTS.md).
+[db/bench/RESULTS.md](db/bench/RESULTS.md).
 
 ### Deferred
 

@@ -1,4 +1,4 @@
--- The API's real statements (api/capacity_query.go), prepared and forced onto
+-- The API's real statements (api/capacity/query.go), prepared and forced onto
 -- the generic plan: pgx prepares statements and Postgres may switch to a
 -- generic plan after five runs, so the generic plan is the one that must be good.
 SET plan_cache_mode = force_generic_plan;

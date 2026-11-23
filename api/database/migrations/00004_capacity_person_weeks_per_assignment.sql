@@ -4,7 +4,7 @@
 -- Same rules and result as 00002; only the allocation step changes. 00002
 -- joined every assignment in the range to every week in the range and then
 -- filtered, so the work grew with weeks × assignments: about 3 s for the
--- roster-wide count over 53 weeks at 3,000 people (bench/RESULTS.md). Here
+-- roster-wide count over 53 weeks at 3,000 people (db/bench/RESULTS.md). Here
 -- each assignment is expanded only into the weeks it overlaps.
 CREATE OR REPLACE FUNCTION capacity_person_weeks(p_from date, p_to date, p_person_ids int[])
 RETURNS TABLE (person_id int, week_start date, allocated numeric, weekend numeric,
