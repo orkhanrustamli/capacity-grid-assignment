@@ -39,3 +39,11 @@ left unfinished. Append as you go; a line or two per entry is right.
 - Decision: keyset pagination on `(name, id)`, `over_only` filter and roster-wide `over_count` on the first page only (ADR 0006). `person_id=` requests also carry `over_count` so the post-edit row refresh can update the count.
 - Dead end: the first pagination test assumed fixture names starting "zz-" sort last; the seed has Greek, Cyrillic, Hebrew, Arabic and CJK names, which sort after Latin in `en_US.utf8`. Test now checks the fixtures come first, in order, with no duplicates.
 - Verified with curl on the demo range: people 1–5 match the golden table; 41 people are over-allocated in that range; reversed range → 400 `invalid_range`.
+
+## Task 5 — benchmark and index
+
+- Built `capacity_bench` (3,000 people, 1.5 M rows) from a dump of the seeded DB; the real DB is only read.
+- Decision: B-tree `(person_id, end_date) INCLUDE (start_date, hours_per_day)` (ADR 0003, bench/RESULTS.md): 4–5× fewer buffers per page than the schema's indexes, same speed as GiST at 60% of its size, no extension.
+- Bug caught by the benchmark: passing the roster as `(SELECT array_agg(id) FROM people)` in the function's arguments stops Postgres inlining it; switched the count and over_only to a `LATERAL` join.
+- Known cost: whole-roster count/filter is 80–110 ms at production size regardless of index (aggregation). Pre-aggregation deferred.
+- Overran the 15-minute box by ~10 minutes because of the inlining finding; worth it.

@@ -75,12 +75,18 @@ type capacityPage struct {
 //
 // over_only keeps people with at least one over week; the set is computed once
 // for the range from the same function the cells and the count use.
+//
+// The whole roster is passed through a LATERAL join, not as a sub-select in
+// the argument list: Postgres never inlines a function whose arguments contain
+// a sub-select, and the un-inlined call measured slower and spilled to disk.
 const (
 	pageByCursorSQL = `
 		SELECT p.id, p.name FROM people p
 		WHERE (p.name, p.id) > ($1::text, $2::int)
 		  AND (NOT $3::bool OR p.id IN (
-		        SELECT w.person_id FROM capacity_person_weeks($4::date, $5::date, (SELECT array_agg(id) FROM people)) w
+		        SELECT w.person_id
+		        FROM (SELECT array_agg(id) AS ids FROM people) roster,
+		             LATERAL capacity_person_weeks($4::date, $5::date, roster.ids) w
 		        WHERE w.status = 'over'))
 		ORDER BY p.name, p.id
 		LIMIT $6`
@@ -104,9 +110,10 @@ const (
 		ORDER BY person_id, week_start`
 
 	overCountSQL = `
-		SELECT count(DISTINCT person_id)::int
-		FROM capacity_person_weeks($1::date, $2::date, (SELECT array_agg(id) FROM people))
-		WHERE status = 'over'`
+		SELECT count(DISTINCT w.person_id)::int
+		FROM (SELECT array_agg(id) AS ids FROM people) roster,
+		     LATERAL capacity_person_weeks($1::date, $2::date, roster.ids) w
+		WHERE w.status = 'over'`
 )
 
 // queryCapacity returns one page of people, ordered by (name, id), each with
