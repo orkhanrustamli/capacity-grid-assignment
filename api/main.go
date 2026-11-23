@@ -1,20 +1,21 @@
+// Command api wires the HTTP server: it connects to Postgres, applies the
+// migrations and routes each endpoint to its package.
 package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-)
 
-type server struct {
-	db  DBTX
-	now func() time.Time
-}
+	"capacity/api/capacity"
+	"capacity/api/database"
+	"capacity/api/httpapi"
+	"capacity/api/people"
+)
 
 func main() {
 	ctx := context.Background()
@@ -40,32 +41,26 @@ func main() {
 		log.Fatalf("ping: %v", err)
 	}
 
-	if err := migrate(ctx, db); err != nil {
+	if err := database.Migrate(ctx, db); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
 
-	s := &server{db: db, now: time.Now}
-
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/health", s.handleHealth)
-	mux.HandleFunc("GET /api/capacity", s.handleCapacity)
-	mux.HandleFunc("PATCH /api/people/{id}", s.handleUpdatePerson)
+	mux.HandleFunc("GET /api/health", handleHealth(db))
+	mux.Handle("GET /api/capacity", &capacity.Handler{DB: db})
+	mux.Handle("PATCH /api/people/{id}", &people.Handler{DB: db, Now: time.Now})
 
 	log.Println("listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080", mux))
 }
 
-func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	var people int
-	if err := s.db.QueryRow(r.Context(), `SELECT count(*) FROM people`).Scan(&people); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+func handleHealth(db database.DBTX) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var count int
+		if err := db.QueryRow(r.Context(), `SELECT count(*) FROM people`).Scan(&count); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		httpapi.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "people": count})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "people": people})
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
 }

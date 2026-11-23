@@ -1,4 +1,6 @@
-package main
+// Package people serves PATCH /api/people/{id}: the handler that validates an
+// edit of a person's weekly hours, and the transaction that stores it.
+package people
 
 import (
 	"bytes"
@@ -8,6 +10,11 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"time"
+
+	"capacity/api/database"
+	"capacity/api/httpapi"
+	"capacity/api/week"
 )
 
 const (
@@ -20,7 +27,7 @@ const (
 // typed and fits the 0–168 check.
 var weeklyHoursPattern = regexp.MustCompile(`^\d{1,3}(\.\d{1,2})?$`)
 
-// handleUpdatePerson serves PATCH /api/people/{id}.
+// Handler serves PATCH /api/people/{id}.
 //
 // Body: {"weekly_hours": 32, "effective_from"?: "YYYY-MM-DD", "expected_weekly_hours"?: 40}.
 // The new value applies from the Monday of effective_from (default: this
@@ -29,26 +36,31 @@ var weeklyHoursPattern = regexp.MustCompile(`^\d{1,3}(\.\d{1,2})?$`)
 // for that week, or the edit is refused with 409 (someone else changed it).
 // Saving the value already in effect is a no-op that succeeds, so a retried
 // save whose first response was lost does not conflict with itself.
-func (s *server) handleUpdatePerson(w http.ResponseWriter, r *http.Request) {
-	id, ok := parsePersonID(r.PathValue("id"))
-	if !ok {
-		writeError(w, badRequest("invalid_person_id", "person id must be a positive integer"))
-		return
-	}
-	update, err := s.parseCapacityUpdate(http.MaxBytesReader(w, r.Body, maxPatchBodyBytes))
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	result, err := updateCapacity(r.Context(), s.db, id, update, s.now().UTC())
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, result)
+type Handler struct {
+	DB  database.DBTX
+	Now func() time.Time
 }
 
-func (s *server) parseCapacityUpdate(body io.Reader) (capacityUpdate, error) {
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	id, ok := httpapi.ParseID(r.PathValue("id"))
+	if !ok {
+		httpapi.WriteError(w, httpapi.BadRequest("invalid_person_id", "person id must be a positive integer"))
+		return
+	}
+	update, err := h.parseCapacityUpdate(http.MaxBytesReader(w, r.Body, maxPatchBodyBytes))
+	if err != nil {
+		httpapi.WriteError(w, err)
+		return
+	}
+	result, err := updateCapacity(r.Context(), h.DB, id, update, h.Now().UTC())
+	if err != nil {
+		httpapi.WriteError(w, err)
+		return
+	}
+	httpapi.WriteJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) parseCapacityUpdate(body io.Reader) (capacityUpdate, error) {
 	var raw struct {
 		WeeklyHours         json.RawMessage `json:"weekly_hours"`
 		EffectiveFrom       json.RawMessage `json:"effective_from"`
@@ -70,18 +82,18 @@ func (s *server) parseCapacityUpdate(body io.Reader) (capacityUpdate, error) {
 	if err := validateWeeklyHours(hours); err != nil {
 		return capacityUpdate{}, err
 	}
-	u := capacityUpdate{WeeklyHours: hours, EffectiveFrom: weekStart(s.now().UTC())}
+	u := capacityUpdate{WeeklyHours: hours, EffectiveFrom: week.Start(h.Now().UTC())}
 
 	if present(raw.EffectiveFrom) {
 		var v string
 		if err := json.Unmarshal(raw.EffectiveFrom, &v); err != nil {
 			return capacityUpdate{}, invalidBody("effective_from must be a YYYY-MM-DD string")
 		}
-		d, err := parseDate(v)
+		d, err := week.ParseDate(v)
 		if err != nil {
 			return capacityUpdate{}, invalidBody("effective_from: " + err.Error())
 		}
-		u.EffectiveFrom = weekStart(d)
+		u.EffectiveFrom = week.Start(d)
 	}
 	if present(raw.ExpectedWeeklyHours) {
 		expected, ok := jsonNumber(raw.ExpectedWeeklyHours)
@@ -115,10 +127,10 @@ func validateWeeklyHours(v string) error {
 			return nil
 		}
 	}
-	return &apiError{Status: http.StatusUnprocessableEntity, Code: "invalid_weekly_hours",
+	return &httpapi.Error{Status: http.StatusUnprocessableEntity, Code: "invalid_weekly_hours",
 		Message: fmt.Sprintf("weekly_hours must be between 0 and %d with at most two decimals", maxWeeklyHours)}
 }
 
-func invalidBody(message string) *apiError {
-	return badRequest("invalid_body", message)
+func invalidBody(message string) *httpapi.Error {
+	return httpapi.BadRequest("invalid_body", message)
 }

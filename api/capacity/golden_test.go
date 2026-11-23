@@ -1,6 +1,10 @@
-package main
+package capacity
 
-import "testing"
+import (
+	"testing"
+
+	"capacity/api/internal/testdb"
+)
 
 // requireFreshSeed stops a test that reads the hand-built seed people 1–5 when
 // someone has edited them (e.g. through the UI). A skip would read as green
@@ -9,9 +13,9 @@ func requireFreshSeed(t *testing.T) {
 	t.Helper()
 	var hours string
 	var edits int
-	mustScan(t, testPool.QueryRow(ctx, `
+	testdb.MustScan(t, testdb.Pool.QueryRow(ctx, `
 		SELECT string_agg(weekly_hours::text, ',' ORDER BY id) FROM people WHERE id BETWEEN 1 AND 5`), &hours)
-	mustScan(t, testPool.QueryRow(ctx, `
+	testdb.MustScan(t, testdb.Pool.QueryRow(ctx, `
 		SELECT count(*) FROM person_capacity_changes
 		WHERE person_id BETWEEN 1 AND 5 AND effective_from <> '-infinity'`), &edits)
 	if hours != "40,40,20,40,0" || edits != 0 {
@@ -36,7 +40,7 @@ func TestSeedPeople1To5DemoRange(t *testing.T) {
 	}
 	weeks := []string{"2025-12-29", "2026-01-05", "2026-01-12"}
 
-	got := personWeeks(t, testPool, "2025-12-29", "2026-01-18", 1, 2, 3, 4, 5)
+	got := personWeeks(t, testdb.Pool, "2025-12-29", "2026-01-18", 1, 2, 3, 4, 5)
 	for id, exp := range expected {
 		if len(got[id]) != len(weeks) {
 			t.Fatalf("person %d: got %d weeks", id, len(got[id]))

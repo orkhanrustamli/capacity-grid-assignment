@@ -1,4 +1,4 @@
-package main
+package capacity
 
 import (
 	"encoding/json"
@@ -7,30 +7,30 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
-	"time"
+
+	"capacity/api/database"
+	"capacity/api/internal/testdb"
 )
 
 const demoRange = "from=2025-12-29&to=2026-01-16"
 
-func fixedNow() time.Time { return time.Date(2026, 1, 7, 12, 0, 0, 0, time.UTC) }
-
 // getCapacity calls the handler directly and decodes a 200 response.
-func getCapacity(t *testing.T, db DBTX, query string) capacityPage {
+func getCapacity(t *testing.T, db database.DBTX, query string) Page {
 	t.Helper()
 	rec := serveCapacity(db, query)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET ?%s = %d %s", query, rec.Code, rec.Body.String())
 	}
-	var page capacityPage
+	var page Page
 	if err := json.Unmarshal(rec.Body.Bytes(), &page); err != nil {
 		t.Fatal(err)
 	}
 	return page
 }
 
-func serveCapacity(db DBTX, query string) *httptest.ResponseRecorder {
+func serveCapacity(db database.DBTX, query string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
-	(&server{db: db, now: fixedNow}).handleCapacity(rec, httptest.NewRequest(http.MethodGet, "/api/capacity?"+query, nil))
+	(&Handler{DB: db}).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/capacity?"+query, nil))
 	return rec
 }
 
@@ -38,7 +38,7 @@ func serveCapacity(db DBTX, query string) *httptest.ResponseRecorder {
 // so pagination tests walk only the people they created.
 func afterSeed() string { return url.QueryEscape(encodeCursor(pageCursor{Name: "zz-test", ID: 0})) }
 
-func names(p capacityPage) []string {
+func names(p Page) []string {
 	out := []string{}
 	for _, person := range p.People {
 		out = append(out, person.Name)
@@ -48,7 +48,7 @@ func names(p capacityPage) []string {
 
 func TestCapacityResponseShape(t *testing.T) {
 	requireFreshSeed(t)
-	page := getCapacity(t, testPool, demoRange+"&person_id=1")
+	page := getCapacity(t, testdb.Pool, demoRange+"&person_id=1")
 
 	if page.From != "2025-12-29" || page.To != "2026-01-18" {
 		t.Errorf("range = %s..%s", page.From, page.To)
@@ -67,9 +67,9 @@ func TestCapacityResponseShape(t *testing.T) {
 }
 
 func TestUtilizationNullForZeroCapacity(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "zz-test zero", "0")
-	insertAssignment(t, tx, id, "2026-01-05", "2026-01-09", "4")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "zz-test zero", "0")
+	testdb.InsertAssignment(t, tx, id, "2026-01-05", "2026-01-09", "4")
 
 	rec := serveCapacity(tx, fmt.Sprintf("%s&person_id=%d", demoRange, id))
 	var raw struct {
@@ -87,9 +87,9 @@ func TestUtilizationNullForZeroCapacity(t *testing.T) {
 }
 
 func TestKeysetPaginationIsStableAndComplete(t *testing.T) {
-	tx := beginTx(t)
+	tx := testdb.Begin(t)
 	for i := 5; i >= 1; i-- { // inserted out of order on purpose
-		insertPerson(t, tx, fmt.Sprintf("zz-test %d", i), "40")
+		testdb.InsertPerson(t, tx, fmt.Sprintf("zz-test %d", i), "40")
 	}
 
 	// Walk from just before the fixtures to the end of the roster. Non-Latin seed
@@ -124,15 +124,15 @@ func TestKeysetPaginationIsStableAndComplete(t *testing.T) {
 }
 
 func TestOverOnlyAndOverCount(t *testing.T) {
-	tx := beginTx(t)
+	tx := testdb.Begin(t)
 	before := getCapacity(t, tx, demoRange+"&limit=1")
 	if before.OverCount == nil {
 		t.Fatal("first page has no over_count")
 	}
 
-	over := insertPerson(t, tx, "zz-test over", "40")
-	insertAssignment(t, tx, over, "2026-01-05", "2026-01-09", "9") // 45 h
-	insertPerson(t, tx, "zz-test fine", "40")
+	over := testdb.InsertPerson(t, tx, "zz-test over", "40")
+	testdb.InsertAssignment(t, tx, over, "2026-01-05", "2026-01-09", "9") // 45 h
+	testdb.InsertPerson(t, tx, "zz-test fine", "40")
 
 	after := getCapacity(t, tx, demoRange+"&limit=1")
 	if *after.OverCount != *before.OverCount+1 {
@@ -149,8 +149,8 @@ func TestOverOnlyAndOverCount(t *testing.T) {
 }
 
 func TestPersonIDFilterStillReturnsRosterOverCount(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "zz-test single", "40")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "zz-test single", "40")
 	roster := getCapacity(t, tx, demoRange+"&limit=1")
 	single := getCapacity(t, tx, fmt.Sprintf("%s&person_id=%d", demoRange, id))
 
@@ -179,7 +179,7 @@ func TestCapacityValidation(t *testing.T) {
 		{"from=0000-01-03&to=0000-01-09", "invalid_date"},
 	} {
 		t.Run(tc.query, func(t *testing.T) {
-			rec := serveCapacity(testPool, tc.query)
+			rec := serveCapacity(testdb.Pool, tc.query)
 			var body struct {
 				Error struct{ Code string } `json:"error"`
 			}

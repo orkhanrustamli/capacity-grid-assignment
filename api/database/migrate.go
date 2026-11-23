@@ -1,4 +1,4 @@
-package main
+package database
 
 import (
 	"context"
@@ -16,11 +16,12 @@ import (
 //go:embed migrations/*.sql
 var embeddedMigrations embed.FS
 
-// migrate applies every pending migration in migrations/ before the API
-// serves traffic. Reviewers rebuild with their own schema.sql and seed.sql, so
+// Migrate applies every pending migration in migrations/ before the API
+// serves traffic. The files live beside this package because go:embed cannot
+// reach outside its directory. Reviewers rebuild with their own schema.sql and seed.sql, so
 // any database change we need has to arrive this way. The Postgres advisory
 // lock keeps two API replicas starting together from applying the same file.
-func migrate(ctx context.Context, pool *pgxpool.Pool) error {
+func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	fsys, err := fs.Sub(embeddedMigrations, "migrations")
 	if err != nil {
 		return err

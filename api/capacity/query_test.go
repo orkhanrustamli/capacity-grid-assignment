@@ -1,8 +1,16 @@
-package main
+package capacity
 
 import (
+	"context"
 	"testing"
+
+	"capacity/api/database"
+	"capacity/api/internal/testdb"
 )
+
+var ctx = context.Background()
+
+func TestMain(m *testing.M) { testdb.Main(m) }
 
 type personWeek struct {
 	Week                         string
@@ -12,7 +20,7 @@ type personWeek struct {
 }
 
 // personWeeks reads capacity_person_weeks for the given people, grouped by person.
-func personWeeks(t *testing.T, db DBTX, from, to string, ids ...int) map[int][]personWeek {
+func personWeeks(t *testing.T, db database.DBTX, from, to string, ids ...int) map[int][]personWeek {
 	t.Helper()
 	rows, err := db.Query(ctx, `
 		SELECT person_id, week_start::text, round(allocated, 2)::float8, round(weekend, 2)::float8,
@@ -56,25 +64,25 @@ func assertWeek(t *testing.T, got personWeek, allocated, weekend, capacity float
 }
 
 func TestFragmentsAreSummed(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "Fragments", "40")
-	insertFragmentedAssignment(t, tx, id, "2026-01-05", "2026-01-09", "8") // 15 rows summing to 8 h/day
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "Fragments", "40")
+	testdb.InsertFragmentedAssignment(t, tx, id, "2026-01-05", "2026-01-09", "8") // 15 rows summing to 8 h/day
 
 	assertWeek(t, onlyWeek(t, personWeeks(t, tx, "2026-01-05", "2026-01-11", id)[id]), 40, 0, 40, "full")
 }
 
 func TestWeekendHoursAreSeparate(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "Weekend", "40")
-	insertAssignment(t, tx, id, "2026-01-05", "2026-01-11", "8") // Monday to Sunday
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "Weekend", "40")
+	testdb.InsertAssignment(t, tx, id, "2026-01-05", "2026-01-11", "8") // Monday to Sunday
 
 	assertWeek(t, onlyWeek(t, personWeeks(t, tx, "2026-01-05", "2026-01-11", id)[id]), 40, 16, 40, "full")
 }
 
 func TestAssignmentCrossingWeeksIsSplit(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "Crossing", "40")
-	insertAssignment(t, tx, id, "2026-01-09", "2026-01-12", "8") // Friday to Monday
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "Crossing", "40")
+	testdb.InsertAssignment(t, tx, id, "2026-01-09", "2026-01-12", "8") // Friday to Monday
 
 	weeks := personWeeks(t, tx, "2026-01-05", "2026-01-18", id)[id]
 	if len(weeks) != 2 {
@@ -85,27 +93,27 @@ func TestAssignmentCrossingWeeksIsSplit(t *testing.T) {
 }
 
 func TestOverlappingAssignmentsAdd(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "Overlap", "40")
-	insertAssignment(t, tx, id, "2026-01-05", "2026-01-09", "6")
-	insertAssignment(t, tx, id, "2026-01-07", "2026-01-09", "5")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "Overlap", "40")
+	testdb.InsertAssignment(t, tx, id, "2026-01-05", "2026-01-09", "6")
+	testdb.InsertAssignment(t, tx, id, "2026-01-07", "2026-01-09", "5")
 
 	assertWeek(t, onlyWeek(t, personWeeks(t, tx, "2026-01-05", "2026-01-11", id)[id]), 45, 0, 40, "over")
 }
 
 func TestExactlyFullIsNotOver(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "Exactly full", "40")
-	insertAssignment(t, tx, id, "2026-01-05", "2026-01-09", "8")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "Exactly full", "40")
+	testdb.InsertAssignment(t, tx, id, "2026-01-05", "2026-01-09", "8")
 
 	assertWeek(t, onlyWeek(t, personWeeks(t, tx, "2026-01-05", "2026-01-11", id)[id]), 40, 0, 40, "full")
 }
 
 func TestZeroCapacityWithWorkIsOver(t *testing.T) {
-	tx := beginTx(t)
-	busy := insertPerson(t, tx, "Zero busy", "0")
-	idle := insertPerson(t, tx, "Zero idle", "0")
-	insertAssignment(t, tx, busy, "2026-01-05", "2026-01-09", "4")
+	tx := testdb.Begin(t)
+	busy := testdb.InsertPerson(t, tx, "Zero busy", "0")
+	idle := testdb.InsertPerson(t, tx, "Zero idle", "0")
+	testdb.InsertAssignment(t, tx, busy, "2026-01-05", "2026-01-09", "4")
 
 	got := personWeeks(t, tx, "2026-01-05", "2026-01-11", busy, idle)
 	assertWeek(t, onlyWeek(t, got[busy]), 20, 0, 0, "over")
@@ -113,8 +121,8 @@ func TestZeroCapacityWithWorkIsOver(t *testing.T) {
 }
 
 func TestEmptyWeeksAndIdlePeopleAppear(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "Idle", "40")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "Idle", "40")
 
 	weeks := personWeeks(t, tx, "2026-01-05", "2026-01-25", id)[id]
 	want := []string{"2026-01-05", "2026-01-12", "2026-01-19"}
@@ -130,17 +138,17 @@ func TestEmptyWeeksAndIdlePeopleAppear(t *testing.T) {
 }
 
 func TestAssignmentPartlyOutsideRange(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "Partly outside", "40")
-	insertAssignment(t, tx, id, "2025-12-29", "2026-01-09", "8")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "Partly outside", "40")
+	testdb.InsertAssignment(t, tx, id, "2025-12-29", "2026-01-09", "8")
 
 	assertWeek(t, onlyWeek(t, personWeeks(t, tx, "2026-01-05", "2026-01-11", id)[id]), 40, 0, 40, "full")
 }
 
 func TestCapacityBreakpointMidRange(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "Breakpoint", "40")
-	mustExec(t, tx, `INSERT INTO person_capacity_changes (person_id, effective_from, weekly_hours)
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "Breakpoint", "40")
+	testdb.MustExec(t, tx, `INSERT INTO person_capacity_changes (person_id, effective_from, weekly_hours)
 		VALUES ($1, '2026-01-12', 32)`, id)
 
 	weeks := personWeeks(t, tx, "2026-01-05", "2026-01-25", id)[id]
@@ -157,8 +165,8 @@ func TestCapacityBreakpointMidRange(t *testing.T) {
 }
 
 func TestPersonWithoutBaselineFallsBackToPeopleColumn(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPersonWithoutBaseline(t, tx, "No baseline", "24")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPersonWithoutBaseline(t, tx, "No baseline", "24")
 
 	weeks := personWeeks(t, tx, "2026-01-05", "2026-01-18", id)[id]
 	if len(weeks) != 2 {

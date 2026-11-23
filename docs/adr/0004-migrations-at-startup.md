@@ -19,9 +19,11 @@ by the API itself.
 
 ## Decision
 
-goose. `migrate()` runs after the database ping and before the server listens; the API refuses
-to start if a migration fails. Tests call the same `migrate()` in `TestMain`, so they run
-against exactly the schema the API serves.
+goose. `database.Migrate()` runs after the database ping and before the server listens; the API
+refuses to start if a migration fails. Each test package's `TestMain` calls the same
+`database.Migrate()` (through `internal/testdb`), so tests run against exactly the schema the API
+serves. The files live in `api/database/migrations/`, beside the code that embeds them: `go:embed`
+cannot reach a parent directory, and Compose builds the API image from `./api` only.
 
 ## Consequences
 

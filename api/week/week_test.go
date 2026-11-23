@@ -1,12 +1,11 @@
-package main
+package week
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
+
+	"capacity/api/httpapi"
 )
 
 func TestParseRange(t *testing.T) {
@@ -21,17 +20,17 @@ func TestParseRange(t *testing.T) {
 	}
 	for _, tc := range ok {
 		t.Run(tc.name, func(t *testing.T) {
-			r, err := parseRange(tc.from, tc.to)
+			r, err := ParseRange(tc.from, tc.to)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := r.From.Format(dateLayout); got != tc.wantFrom {
+			if got := r.From.Format(Layout); got != tc.wantFrom {
 				t.Errorf("from = %s, want %s", got, tc.wantFrom)
 			}
-			if got := r.To.Format(dateLayout); got != tc.wantTo {
+			if got := r.To.Format(Layout); got != tc.wantTo {
 				t.Errorf("to = %s, want %s", got, tc.wantTo)
 			}
-			if got := r.weekCount(); got != tc.weeks {
+			if got := r.Count(); got != tc.weeks {
 				t.Errorf("weeks = %d, want %d", got, tc.weeks)
 			}
 		})
@@ -47,10 +46,10 @@ func TestParseRange(t *testing.T) {
 	}
 	for _, tc := range bad {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := parseRange(tc.from, tc.to)
-			var apiErr *apiError
+			_, err := ParseRange(tc.from, tc.to)
+			var apiErr *httpapi.Error
 			if !errors.As(err, &apiErr) {
-				t.Fatalf("err = %v, want *apiError", err)
+				t.Fatalf("err = %v, want *httpapi.Error", err)
 			}
 			if apiErr.Code != tc.code || apiErr.Status != http.StatusBadRequest {
 				t.Errorf("got %d %s, want 400 %s", apiErr.Status, apiErr.Code, tc.code)
@@ -60,39 +59,11 @@ func TestParseRange(t *testing.T) {
 }
 
 func TestParseRangeAcceptsExactly53Weeks(t *testing.T) {
-	r, err := parseRange("2025-01-06", "2026-01-11")
+	r, err := ParseRange("2025-01-06", "2026-01-11")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.weekCount() != maxRangeWeeks {
-		t.Errorf("weeks = %d, want %d", r.weekCount(), maxRangeWeeks)
-	}
-}
-
-func TestWriteErrorUsesAPIErrorStatusAndBody(t *testing.T) {
-	rec := httptest.NewRecorder()
-	writeError(rec, &apiError{Status: http.StatusConflict, Code: "capacity_conflict", Message: "changed",
-		Details: map[string]any{"current_weekly_hours": 36}})
-
-	var body struct {
-		Error map[string]any `json:"error"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
-		t.Fatal(err)
-	}
-	if rec.Code != http.StatusConflict || body.Error["code"] != "capacity_conflict" ||
-		body.Error["message"] != "changed" || body.Error["current_weekly_hours"] != float64(36) {
-		t.Errorf("got %d %s", rec.Code, rec.Body.String())
-	}
-}
-
-func TestWriteErrorHidesInternalErrors(t *testing.T) {
-	rec := httptest.NewRecorder()
-	writeError(rec, errors.New("pq: secret column detail"))
-	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("status = %d", rec.Code)
-	}
-	if strings.Contains(rec.Body.String(), "secret") || !strings.Contains(rec.Body.String(), `"code":"internal"`) {
-		t.Errorf("body = %s", rec.Body.String())
+	if r.Count() != MaxRangeWeeks {
+		t.Errorf("weeks = %d, want %d", r.Count(), MaxRangeWeeks)
 	}
 }

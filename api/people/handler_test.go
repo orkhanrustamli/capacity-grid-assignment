@@ -1,6 +1,7 @@
-package main
+package people
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,24 +9,33 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"capacity/api/capacity"
+	"capacity/api/database"
+	"capacity/api/internal/testdb"
+	"capacity/api/week"
 )
 
+var ctx = context.Background()
+
+func TestMain(m *testing.M) { testdb.Main(m) }
+
 // patchRange spans the weeks the PATCH tests look at: 2025-12-29 .. 2026-02-02.
-var patchRange = dateRange{
+var patchRange = week.Range{
 	From: time.Date(2025, 12, 29, 0, 0, 0, 0, time.UTC),
 	To:   time.Date(2026, 2, 8, 0, 0, 0, 0, time.UTC),
 }
 
-func servePatch(db DBTX, id, body string) *httptest.ResponseRecorder {
+func servePatch(db database.DBTX, id, body string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPatch, "/api/people/"+id, strings.NewReader(body))
 	req.SetPathValue("id", id)
-	(&server{db: db, now: fixedNow}).handleUpdatePerson(rec, req)
+	(&Handler{DB: db, Now: testdb.FixedNow}).ServeHTTP(rec, req)
 	return rec
 }
 
 // patch sends a PATCH that must succeed and decodes the response.
-func patch(t *testing.T, db DBTX, id int, body string) personCapacity {
+func patch(t *testing.T, db database.DBTX, id int, body string) personCapacity {
 	t.Helper()
 	rec := servePatch(db, strconv.Itoa(id), body)
 	if rec.Code != http.StatusOK {
@@ -39,30 +49,30 @@ func patch(t *testing.T, db DBTX, id int, body string) personCapacity {
 }
 
 // weekCapacities returns week → capacity cell for one person over patchRange.
-func weekCapacities(t *testing.T, db DBTX, personID int) map[string]weekCell {
+func weekCapacities(t *testing.T, db database.DBTX, personID int) map[string]capacity.WeekCell {
 	t.Helper()
-	page, err := queryCapacity(ctx, db, capacityQuery{Range: patchRange, Limit: 1, PersonIDs: []int{personID}})
+	page, err := capacity.Load(ctx, db, capacity.Query{Range: patchRange, Limit: 1, PersonIDs: []int{personID}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(page.People) != 1 {
 		t.Fatalf("person %d: got %d rows", personID, len(page.People))
 	}
-	out := map[string]weekCell{}
+	out := map[string]capacity.WeekCell{}
 	for _, c := range page.People[0].Weeks {
 		out[c.Week] = c
 	}
 	return out
 }
 
-func peopleWeeklyHours(t *testing.T, db DBTX, id int) float64 {
+func peopleWeeklyHours(t *testing.T, db database.DBTX, id int) float64 {
 	t.Helper()
 	var h float64
-	mustScan(t, db.QueryRow(ctx, `SELECT weekly_hours::float8 FROM people WHERE id = $1`, id), &h)
+	testdb.MustScan(t, db.QueryRow(ctx, `SELECT weekly_hours::float8 FROM people WHERE id = $1`, id), &h)
 	return h
 }
 
-func assertCapacities(t *testing.T, cells map[string]weekCell, want map[string]float64) {
+func assertCapacities(t *testing.T, cells map[string]capacity.WeekCell, want map[string]float64) {
 	t.Helper()
 	for week, hours := range want {
 		if got := cells[week].CapacityHours; got != hours {
@@ -72,8 +82,8 @@ func assertCapacities(t *testing.T, cells map[string]weekCell, want map[string]f
 }
 
 func TestPatchAppliesFromSnappedWeekAndKeepsHistory(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "zz-test patch", "40")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "zz-test patch", "40")
 
 	got := patch(t, tx, id, `{"weekly_hours": 32, "effective_from": "2026-01-07"}`)
 
@@ -93,8 +103,8 @@ func TestPatchAppliesFromSnappedWeekAndKeepsHistory(t *testing.T) {
 }
 
 func TestPatchDefaultsToCurrentWeek(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "zz-test patch", "40")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "zz-test patch", "40")
 
 	if got := patch(t, tx, id, `{"weekly_hours": 30}`); got.EffectiveFrom != "2026-01-05" {
 		t.Errorf("effective_from = %s, want 2026-01-05", got.EffectiveFrom)
@@ -102,8 +112,8 @@ func TestPatchDefaultsToCurrentWeek(t *testing.T) {
 }
 
 func TestPatchPreservesLaterBreakpoint(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "zz-test patch", "40")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "zz-test patch", "40")
 
 	patch(t, tx, id, `{"weekly_hours": 20, "effective_from": "2026-02-02"}`)
 	patch(t, tx, id, `{"weekly_hours": 32, "effective_from": "2026-01-05"}`)
@@ -114,8 +124,8 @@ func TestPatchPreservesLaterBreakpoint(t *testing.T) {
 }
 
 func TestPatchPastEditMirrorsCurrentWeekValue(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "zz-test patch", "40")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "zz-test patch", "40")
 
 	patch(t, tx, id, `{"weekly_hours": 32, "effective_from": "2026-01-05"}`)
 	got := patch(t, tx, id, `{"weekly_hours": 36, "effective_from": "2025-12-01"}`)
@@ -130,8 +140,8 @@ func TestPatchPastEditMirrorsCurrentWeekValue(t *testing.T) {
 }
 
 func TestPatchFutureEditDoesNotMirror(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "zz-test patch", "40")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "zz-test patch", "40")
 
 	got := patch(t, tx, id, `{"weekly_hours": 20, "effective_from": "2026-02-02"}`)
 
@@ -144,8 +154,8 @@ func TestPatchFutureEditDoesNotMirror(t *testing.T) {
 }
 
 func TestPatchConflictOnStaleExpected(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "zz-test patch", "40")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "zz-test patch", "40")
 
 	rec := servePatch(tx, strconv.Itoa(id), `{"weekly_hours": 32, "expected_weekly_hours": 36}`)
 
@@ -165,7 +175,7 @@ func TestPatchConflictOnStaleExpected(t *testing.T) {
 		t.Errorf("error = %+v", body.Error)
 	}
 	var changes int
-	mustScan(t, tx.QueryRow(ctx, `SELECT count(*) FROM person_capacity_changes WHERE person_id = $1 AND effective_from <> '-infinity'`, id), &changes)
+	testdb.MustScan(t, tx.QueryRow(ctx, `SELECT count(*) FROM person_capacity_changes WHERE person_id = $1 AND effective_from <> '-infinity'`, id), &changes)
 	if changes != 0 {
 		t.Errorf("%d change rows written on conflict", changes)
 	}
@@ -175,8 +185,8 @@ func TestPatchConflictOnStaleExpected(t *testing.T) {
 }
 
 func TestPatchMatchingExpectedSucceeds(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "zz-test patch", "40")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "zz-test patch", "40")
 
 	if got := patch(t, tx, id, `{"weekly_hours": 32, "expected_weekly_hours": 40.00}`); got.WeeklyHours != 32 {
 		t.Errorf("weekly_hours = %v", got.WeeklyHours)
@@ -184,8 +194,8 @@ func TestPatchMatchingExpectedSucceeds(t *testing.T) {
 }
 
 func TestPatchPersonWithoutBaselineKeepsEarlierWeeks(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPersonWithoutBaseline(t, tx, "zz-test patch", "24")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPersonWithoutBaseline(t, tx, "zz-test patch", "24")
 
 	patch(t, tx, id, `{"weekly_hours": 32, "effective_from": "2026-01-05"}`)
 
@@ -193,8 +203,8 @@ func TestPatchPersonWithoutBaselineKeepsEarlierWeeks(t *testing.T) {
 }
 
 func TestPatchReplacesSameWeek(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "zz-test patch", "40")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "zz-test patch", "40")
 
 	patch(t, tx, id, `{"weekly_hours": 32, "effective_from": "2026-01-05"}`)
 	got := patch(t, tx, id, `{"weekly_hours": 30, "effective_from": "2026-01-05"}`)
@@ -214,8 +224,8 @@ func TestPatchReplacesSameWeek(t *testing.T) {
 }
 
 func TestPatchValidation(t *testing.T) {
-	tx := beginTx(t)
-	id := strconv.Itoa(insertPerson(t, tx, "zz-test patch", "40"))
+	tx := testdb.Begin(t)
+	id := strconv.Itoa(testdb.InsertPerson(t, tx, "zz-test patch", "40"))
 
 	cases := []struct {
 		name, id, body string
@@ -269,10 +279,10 @@ func TestPatchValidation(t *testing.T) {
 	}
 }
 
-func nonBaselineChanges(t *testing.T, db DBTX, id int) int {
+func nonBaselineChanges(t *testing.T, db database.DBTX, id int) int {
 	t.Helper()
 	var n int
-	mustScan(t, db.QueryRow(ctx, `SELECT count(*) FROM person_capacity_changes WHERE person_id = $1 AND effective_from <> '-infinity'`, id), &n)
+	testdb.MustScan(t, db.QueryRow(ctx, `SELECT count(*) FROM person_capacity_changes WHERE person_id = $1 AND effective_from <> '-infinity'`, id), &n)
 	return n
 }
 
@@ -280,8 +290,8 @@ func nonBaselineChanges(t *testing.T, db DBTX, id int) int {
 // breakpoint: one would show a false "capacity changes" marker and cut short
 // a later edit of an earlier week.
 func TestPatchSameValueWritesNothing(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "zz-test patch", "40")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "zz-test patch", "40")
 
 	got := patch(t, tx, id, `{"weekly_hours": 40.00, "effective_from": "2026-01-05", "expected_weekly_hours": 40}`)
 
@@ -300,8 +310,8 @@ func TestPatchSameValueWritesNothing(t *testing.T) {
 // the same body. The retry must succeed, not report the first attempt as
 // someone else's conflicting change.
 func TestPatchRetryOfAppliedSaveSucceeds(t *testing.T) {
-	tx := beginTx(t)
-	id := insertPerson(t, tx, "zz-test patch", "40")
+	tx := testdb.Begin(t)
+	id := testdb.InsertPerson(t, tx, "zz-test patch", "40")
 	body := `{"weekly_hours": 32, "effective_from": "2026-01-05", "expected_weekly_hours": 40}`
 
 	patch(t, tx, id, body)

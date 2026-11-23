@@ -1,4 +1,6 @@
-package main
+// Package database is the API's access to Postgres: the interface queries run
+// against, and the migrations the binary applies at startup (ADR 0004).
+package database
 
 import (
 	"context"

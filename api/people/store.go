@@ -1,4 +1,4 @@
-package main
+package people
 
 import (
 	"context"
@@ -8,6 +8,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"capacity/api/database"
+	"capacity/api/httpapi"
+	"capacity/api/week"
 )
 
 // capacityChange is one breakpoint of a person's capacity history.
@@ -85,17 +89,17 @@ ORDER BY effective_from`
 // updateCapacity sets a person's weekly hours from u.EffectiveFrom onward,
 // until their next later change, in one transaction. The person row is locked
 // first, so two edits of the same person apply one after the other.
-func updateCapacity(ctx context.Context, db DBTX, personID int, u capacityUpdate, today time.Time) (personCapacity, error) {
+func updateCapacity(ctx context.Context, db database.DBTX, personID int, u capacityUpdate, today time.Time) (personCapacity, error) {
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		return personCapacity{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	out := personCapacity{ID: personID, EffectiveFrom: u.EffectiveFrom.Format(dateLayout)}
+	out := personCapacity{ID: personID, EffectiveFrom: u.EffectiveFrom.Format(week.Layout)}
 	if err := tx.QueryRow(ctx, lockPersonSQL, personID).Scan(&out.Name); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return personCapacity{}, &apiError{Status: http.StatusNotFound, Code: "person_not_found",
+			return personCapacity{}, &httpapi.Error{Status: http.StatusNotFound, Code: "person_not_found",
 				Message: fmt.Sprintf("no person with id %d", personID)}
 		}
 		return personCapacity{}, err
@@ -106,7 +110,7 @@ func updateCapacity(ctx context.Context, db DBTX, personID int, u capacityUpdate
 	if err := applyChange(ctx, tx, personID, u); err != nil {
 		return personCapacity{}, err
 	}
-	if err := tx.QueryRow(ctx, mirrorCurrentSQL, personID, weekStart(today).Format(dateLayout)).Scan(&out.WeeklyHours); err != nil {
+	if err := tx.QueryRow(ctx, mirrorCurrentSQL, personID, week.Start(today).Format(week.Layout)).Scan(&out.WeeklyHours); err != nil {
 		return personCapacity{}, err
 	}
 	if out.CapacityChanges, err = listChanges(ctx, tx, personID); err != nil {
@@ -120,7 +124,7 @@ func updateCapacity(ctx context.Context, db DBTX, personID int, u capacityUpdate
 // itself), and refuses it with 409 when the week's value is no longer the one
 // the client last saw.
 func applyChange(ctx context.Context, tx pgx.Tx, personID int, u capacityUpdate) error {
-	effectiveFrom := u.EffectiveFrom.Format(dateLayout)
+	effectiveFrom := u.EffectiveFrom.Format(week.Layout)
 	var current float64
 	var unchanged, asExpected bool
 	err := tx.QueryRow(ctx, capacityInEffectSQL, personID, effectiveFrom, u.WeeklyHours, u.Expected).
@@ -132,7 +136,7 @@ func applyChange(ctx context.Context, tx pgx.Tx, personID int, u capacityUpdate)
 		return nil
 	}
 	if !asExpected {
-		return &apiError{Status: http.StatusConflict, Code: "capacity_conflict",
+		return &httpapi.Error{Status: http.StatusConflict, Code: "capacity_conflict",
 			Message: "capacity changed since it was loaded",
 			Details: map[string]any{"current_weekly_hours": current}}
 	}
