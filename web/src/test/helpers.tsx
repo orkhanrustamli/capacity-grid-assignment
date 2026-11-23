@@ -1,7 +1,7 @@
 import { vi } from 'vitest'
 import { render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { CapacityGrid } from '../CapacityGrid'
+import { CapacityGrid } from '../components/CapacityGrid/CapacityGrid'
 
 export function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })

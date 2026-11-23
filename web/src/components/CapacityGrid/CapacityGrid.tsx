@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import type { PersonRow } from './api'
+import type { PersonRow } from '../../api/capacity.api'
 import { CapacityCell } from './CapacityCell'
-import { formatWeekLabel, type IsoDate } from './dates'
-import { capacityKeys, useCapacityGrid, useRefreshRow, useSaveInProgress, type RowTarget } from './useCapacity'
-import type { Range } from './urlRange'
+import { formatWeekLabel, type IsoDate } from '../../utils/dates'
+import { capacityKeys } from '../../api/capacity.keys'
+import { useCapacityGrid, useRefreshRow, useSaveInProgress, type RowTarget } from '../../api/capacity.hooks'
+import type { Range } from '../../utils/urlRange'
 
 type Props = {
   from: IsoDate

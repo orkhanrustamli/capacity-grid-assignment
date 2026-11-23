@@ -8,14 +8,10 @@ import {
   type InfiniteData,
   type QueryClient,
 } from '@tanstack/react-query'
-import { ApiError, fetchCapacity, updateCapacity, type CapacityPage, type PersonCapacity } from './api'
-import type { IsoDate } from './dates'
-import type { Range } from './urlRange'
-
-export const capacityKeys = {
-  all: ['capacity'] as const,
-  range: (r: Range, overOnly: boolean) => ['capacity', r.from, r.to, overOnly] as const,
-}
+import { ApiError, fetchCapacity, updateCapacity, type CapacityPage, type PersonCapacity } from './capacity.api'
+import type { IsoDate } from '../utils/dates'
+import type { Range } from '../utils/urlRange'
+import { capacityKeys } from './capacity.keys'
 
 type GridData = InfiniteData<CapacityPage, string | undefined>
 

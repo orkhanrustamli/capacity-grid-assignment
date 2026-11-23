@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { addWeeks, isIsoDate, todayIso, weekEndOf, weekStartOf } from './dates'
-import { DEMO_RANGE, rangeProblem, weeksIn, type Range } from './urlRange'
+import { addWeeks, isIsoDate, todayIso, weekEndOf, weekStartOf } from '../utils/dates'
+import { DEMO_RANGE, rangeProblem, weeksIn, type Range } from '../utils/urlRange'
 
 type Props = {
   range: Range

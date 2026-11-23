@@ -1,7 +1,7 @@
-import { CapacityGrid } from './CapacityGrid'
-import { RangeControls } from './RangeControls'
-import { useSaveInProgress } from './useCapacity'
-import { useUrlRange } from './urlRange'
+import { CapacityGrid } from './components/CapacityGrid/CapacityGrid'
+import { RangeControls } from './components/RangeControls'
+import { useSaveInProgress } from './api/capacity.hooks'
+import { useUrlRange } from './utils/urlRange'
 
 // The page owns the range (in the URL) so the grid and, later, the logged-time
 // timeline beside it read the same weeks.

@@ -2,10 +2,10 @@ import { describe, expect, it, vi, afterEach } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent, { type UserEvent } from '@testing-library/user-event'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { RangeControls } from './RangeControls'
-import { App } from './App'
-import type { CapacityPage } from './api'
-import { deeAt36, deeAt48, golden, otherRange, page, savedDee } from './test/fixtures'
+import { RangeControls } from '../RangeControls'
+import { App } from '../../App'
+import type { CapacityPage } from '../../api/capacity.api'
+import { deeAt36, deeAt48, golden, otherRange, page, savedDee } from '../../test/fixtures'
 import {
   deferred,
   errorBody,
@@ -17,7 +17,7 @@ import {
   rowLoads,
   stubFetch,
   testQueryClient,
-} from './test/helpers'
+} from '../../test/helpers'
 
 afterEach(() => {
   vi.unstubAllGlobals()

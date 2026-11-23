@@ -1,8 +1,8 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react'
-import { ApiError, type WeekCell } from './api'
-import { formatWeekLabel } from './dates'
-import { formatHours } from './hours'
-import { RefreshFailedError, useUpdateCapacity, type RowTarget, type SaveVariables } from './useCapacity'
+import { ApiError, type WeekCell } from '../../api/capacity.api'
+import { formatWeekLabel } from '../../utils/dates'
+import { formatHours } from '../../utils/hours'
+import { RefreshFailedError, useUpdateCapacity, type RowTarget, type SaveVariables } from '../../api/capacity.hooks'
 
 type Props = {
   target: RowTarget

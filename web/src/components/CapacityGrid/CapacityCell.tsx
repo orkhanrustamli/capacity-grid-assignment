@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import type { WeekCell } from './api'
+import type { WeekCell } from '../../api/capacity.api'
 import { CapacityEditor } from './CapacityEditor'
-import { formatWeekLabel } from './dates'
-import { formatHours } from './hours'
-import type { RowTarget } from './useCapacity'
+import { formatWeekLabel } from '../../utils/dates'
+import { formatHours } from '../../utils/hours'
+import type { RowTarget } from '../../api/capacity.hooks'
 
 type Props = {
   personName: string

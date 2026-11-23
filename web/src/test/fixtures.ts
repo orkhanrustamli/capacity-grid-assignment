@@ -1,4 +1,4 @@
-import type { CapacityPage, CapacityStatus, PersonRow } from '../api'
+import type { CapacityPage, CapacityStatus, PersonRow } from '../api/capacity.api'
 
 // The golden values for seed people 1–5 over the demo range
 // (api/capacity_golden_test.go), as the API returns them.

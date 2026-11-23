@@ -1,4 +1,4 @@
-import type { IsoDate } from './dates'
+import type { IsoDate } from '../utils/dates'
 
 // Types mirror the API's JSON exactly (snake_case kept), so there is no
 // mapping layer to drift out of step with the server.
